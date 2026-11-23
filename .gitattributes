@@ -1,0 +1,14 @@
+# 统一行尾：所有文本文件一律 LF（Windows/Linux/macOS/CI 无差异）
+# text=auto：按内容自动识别文本/二进制；eol=lf：检出与提交均为 LF
+* text=auto eol=lf
+
+# 二进制资产显式排除（防误转换；text=auto 通常也能正确识别，此处双保险）
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.webp binary
+*.woff  binary
+*.woff2 binary
+*.ttf  binary
