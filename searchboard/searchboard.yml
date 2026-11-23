@@ -1,0 +1,34 @@
+# searchboard 配置示例（YAML 为唯一配置形态）
+# 启动：searchboard -config searchboard.yml
+# 访问：http://127.0.0.1:9201
+
+# 监听地址
+listen: 127.0.0.1:9201
+
+# webfw 传输层：auto（Linux 走 netpoll，其余平台 std）/ netpoll / std
+transport: auto
+
+# Elasticsearch / OpenSearch 连接
+elasticsearch:
+  url: http://127.0.0.1:9200
+  username: ""          # 开启安全认证的集群填写
+  password: ""
+  insecure_skip_verify: false   # https 自签证书集群设 true
+
+# 节点日志追踪（agent 与 ES 同机部署时可直接看节点日志）
+logs:
+  dir: ""               # 日志目录，如 D:/Apps/elasticsearch/logs
+  pattern: "*.log"      # 文件名 glob（只匹配单级文件名）
+  poll_interval: 500ms
+  max_replay_lines: 300 # SSE 建立时回放尾部行数
+  max_files: 200
+
+# 品牌定制（运行时可通过界面 / 品牌定制 页修改，重启回落到此处）
+brand:
+  name: SearchBoard
+  slogan: Elasticsearch 监控管理台
+  logo: ""              # 空=自动探测 /public/logo.png|svg|jpg|webp
+
+# 外部覆盖目录：将其中的文件叠加到 embed 前端基座之上
+# 建议放 logo.png（或 logo.svg/logo.jpg/logo.webp）做品牌定制
+public_dir: "public"

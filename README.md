@@ -15,14 +15,14 @@
 ## 快速开始
 
 ```bash
-# 构建 ES 监控管理台
-go build -o searchboard ./searchboard
-./searchboard -config ./searchboard/searchboard.yml
+# 构建 ES 监控管理台（二进制输出到 bin/，不污染源码目录）
+go build -o bin/searchboard ./searchboard
+./bin/searchboard -config ./searchboard/searchboard.yml
 # 浏览器打开 http://127.0.0.1:9201
 
 # 框架全特性演示（HTTP/WS/RPC/QUIC）
-go build -o framework-demo ./cmd/framework-demo
-./framework-demo -config ./cmd/framework-demo/framework-demo.yml
+go build -o bin/framework-demo ./cmd/framework-demo
+./bin/framework-demo -config ./cmd/framework-demo/framework-demo.yml
 ```
 
 ## 组件文档

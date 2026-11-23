@@ -1,13 +1,11 @@
-# 构建产物
+# 构建产物（二进制统一输出到 bin/，避免与源码目录同名冲突）
+bin/
 *.exe
 *.test
 *.out
 *.dll
 *.so
 *.dylib
-searchboard
-framework-demo
-bin/
 dist/
 
 # IDE

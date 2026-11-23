@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SearchBoard</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2316222e'/%3E%3Ccircle cx='28' cy='28' r='13' fill='none' stroke='%233ba3f0' stroke-width='5'/%3E%3Cline x1='38' y1='38' x2='50' y2='50' stroke='%233ba3f0' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#0f1419; --panel:#161c23; --panel2:#1c232c; --border:#28313c;
+  --text:#dbe2ea; --muted:#8a97a5; --accent:#3ba3f0; --accent2:#2a7ec0;
+  --green:#3fbf6f; --yellow:#e5b45c; --red:#e05d5d; --mono:'Cascadia Code',Consolas,Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,'Segoe UI','Microsoft YaHei',sans-serif;display:flex;height:100vh;overflow:hidden}
+aside{width:230px;min-width:230px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column}
+.brand{padding:16px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;min-height:64px}
+.brand img{width:34px;height:34px;border-radius:8px;object-fit:contain;background:#0c1015;padding:2px}
+.brand .bt{flex:1;min-width:0}
+.brand .bn{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand .bs{color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+nav{padding:8px;flex:1}
+nav a{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:8px;color:var(--muted);text-decoration:none;margin-bottom:2px;cursor:pointer;font-size:13.5px}
+nav a:hover{background:var(--panel2);color:var(--text)}
+nav a.on{background:rgba(59,163,240,.13);color:var(--accent);font-weight:600}
+nav a .ic{width:16px;text-align:center}
+.foot{padding:10px 14px;border-top:1px solid var(--border);color:var(--muted);font-size:11px}
+main{flex:1;display:flex;flex-direction:column;min-width:0}
+header{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;background:var(--panel)}
+header h1{font-size:16px;font-weight:600}
+header .sp{flex:1}
+section.page{display:none;flex:1;overflow:auto;padding:18px 20px}
+section.page.on{display:block}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.card .cv{font-size:22px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
+.card .cl{color:var(--muted);font-size:12px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.dg{background:var(--green)} .dy{background:var(--yellow)} .dr{background:var(--red)} .dx{background:#555}
+.pill{display:inline-block;padding:1px 8px;border-radius:9px;font-size:11px;font-weight:600}
+.pg{background:rgba(63,191,111,.15);color:var(--green)} .py{background:rgba(229,180,92,.15);color:var(--yellow)}
+.pr{background:rgba(224,93,93,.15);color:var(--red)} .px{background:rgba(255,255,255,.06);color:var(--muted)}
+.tbl{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.tbl th{background:var(--panel2);color:var(--muted);text-align:left;padding:9px 12px;font-weight:600;font-size:12px;white-space:nowrap}
+.tbl td{padding:8px 12px;border-top:1px solid var(--border);font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.tbl tr:hover td{background:rgba(59,163,240,.05)}
+.bar{height:6px;border-radius:3px;background:#242d38;min-width:70px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:3px;background:var(--accent)}
+.bar i.w{background:var(--yellow)} .bar i.c{background:var(--red)}
+.btn{background:var(--accent2);color:#fff;border:none;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:13px}
+.btn:hover{background:var(--accent)} .btn:disabled{opacity:.45;cursor:not-allowed}
+.btn2{background:var(--panel2);color:var(--text);border:1px solid var(--border)}
+.btn2:hover{border-color:var(--accent)} .btn2.on{border-color:var(--accent);color:var(--accent)}
+.btn.stop{background:#8a3030} .btn.stop:hover{background:#a53a3a}
+.inp,.sel,textarea{background:#0c1015;color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;outline:none}
+.inp:focus,textarea:focus{border-color:var(--accent)}
+select.sel{padding:6px 8px}
+textarea{font-family:var(--mono);font-size:12.5px;resize:vertical}
+.row{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.row .sp{flex:1}
+.hint{color:var(--muted);font-size:12px}
+.err{color:var(--red)}
+pre.code{background:#0c1015;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:var(--mono);font-size:12.5px;overflow:auto;white-space:pre;max-height:60vh}
+.logbox{background:#0a0e13;border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-family:var(--mono);font-size:12px;height:calc(100vh - 230px);overflow:auto;white-space:pre-wrap;word-break:break-all}
+.logbox div{padding:1px 0}
+.kv{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:12px}
+.kv h3{font-size:13px;color:var(--muted);margin-bottom:8px;font-weight:600}
+.kv table{width:100%;border-collapse:collapse}
+.kv td{padding:4px 8px;font-size:13px}
+.kv td:first-child{color:var(--muted);width:180px}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--border);padding:9px 18px;border-radius:9px;font-size:13px;display:none;box-shadow:0 4px 18px rgba(0,0,0,.4);z-index:99}
+.muted{color:var(--muted)}
+.loading{color:var(--muted);padding:30px;text-align:center}
+.logo-edit{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.logo-edit img{width:52px;height:52px;border-radius:10px;object-fit:contain;background:#0c1015;border:1px solid var(--border);padding:3px}
+</style>
+</head>
+<body>
+<aside>
+  <div class="brand">
+    <img id="bLogo" alt="logo">
+    <div class="bt"><div class="bn" id="bName">SearchBoard</div><div class="bs" id="bSlogan"></div></div>
+  </div>
+  <nav id="nav">
+    <a data-p="overview" class="on"><span class="ic">◱</span>总览</a>
+    <a data-p="nodes"><span class="ic">☰</span>节点</a>
+    <a data-p="indices"><span class="ic">▤</span>索引</a>
+    <a data-p="shards"><span class="ic">▦</span>分片</a>
+    <a data-p="rest"><span class="ic">⌘</span>REST 控制台</a>
+    <a data-p="logs"><span class="ic">≡</span>节点日志</a>
+    <a data-p="brand"><span class="ic">✎</span>品牌定制</a>
+  </nav>
+  <div class="foot"><div id="fEs" class="muted">检查 ES 连接…</div><div id="fVer" class="muted"></div></div>
+</aside>
+<main>
+  <header><h1 id="pgTitle">总览</h1><div class="sp"></div><div id="hdrExtra" class="hint"></div></header>
+
+  <section class="page on" id="pg-overview">
+    <div class="cards">
+      <div class="card"><div class="cl">集群健康</div><div class="cv" id="ovHealth">—</div></div>
+      <div class="card"><div class="cl">节点数</div><div class="cv" id="ovNodes">—</div></div>
+      <div class="card"><div class="cl">索引数</div><div class="cv" id="ovIndices">—</div></div>
+      <div class="card"><div class="cl">文档总数</div><div class="cv" id="ovDocs">—</div></div>
+      <div class="card"><div class="cl">存储用量</div><div class="cv" id="ovStore">—</div></div>
+      <div class="card"><div class="cl">活跃分片 / 总分片</div><div class="cv" id="ovShards">—</div></div>
+    </div>
+    <div class="kv"><h3>集群信息</h3><table id="ovCluster"></table></div>
+    <div class="kv"><h3>节点资源（堆 / 磁盘 / CPU）</h3><table id="ovRes"></table></div>
+  </section>
+
+  <section class="page" id="pg-nodes">
+    <div class="row"><input class="inp" id="nFilter" placeholder="过滤节点…" style="width:220px"><div class="sp"></div><button class="btn" onclick="loadNodes()">刷新</button></div>
+    <table class="tbl" id="tNodes"></table>
+  </section>
+
+  <section class="page" id="pg-indices">
+    <div class="row"><input class="inp" id="iFilter" placeholder="过滤索引…" style="width:220px"><div class="sp"></div><button class="btn" onclick="loadIndices()">刷新</button></div>
+    <table class="tbl" id="tIndices"></table>
+  </section>
+
+  <section class="page" id="pg-shards">
+    <div class="row"><input class="inp" id="sFilter" placeholder="过滤分片…" style="width:220px">
+      <select class="sel" id="sState"><option value="">全部状态</option><option>STARTED</option><option>INITIALIZING</option><option>RELOCATING</option><option>UNASSIGNED</option></select>
+      <div class="sp"></div><button class="btn" onclick="loadShards()">刷新</button></div>
+    <table class="tbl" id="tShards"></table>
+  </section>
+
+  <section class="page" id="pg-rest">
+    <div class="row">
+      <select class="sel" id="rMethod"><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option><option>HEAD</option></select>
+      <input class="inp" id="rPath" style="flex:1;font-family:var(--mono)" placeholder="/_cluster/health">
+      <button class="btn" id="rSend" onclick="restSend()">发送</button>
+    </div>
+    <div class="row" style="margin-top:2px">
+      <span class="hint">快捷：</span>
+      <button class="btn btn2" onclick="restQuick('_cluster/health')">_cluster/health</button>
+      <button class="btn btn2" onclick="restQuick('_cat/indices?format=json&bytes=b')">_cat/indices</button>
+      <button class="btn btn2" onclick="restQuick('_cat/shards?format=json&bytes=b')">_cat/shards</button>
+      <button class="btn btn2" onclick="restQuick('_cluster/stats')">_cluster/stats</button>
+      <button class="btn btn2" onclick="restQuick('_nodes/stats')">_nodes/stats</button>
+    </div>
+    <textarea id="rBody" rows="5" placeholder='请求体（POST/PUT 时填写，JSON）' style="width:100%"></textarea>
+    <div class="row" style="margin-top:12px"><span class="hint" id="rMeta"></span><div class="sp"></div><button class="btn btn2" onclick="copyResp()">复制响应</button></div>
+    <pre class="code" id="rResp">响应将显示在这里</pre>
+  </section>
+
+  <section class="page" id="pg-logs">
+    <div class="row">
+      <select class="sel" id="lFile" style="max-width:340px"><option value="">加载日志文件…</option></select>
+      <select class="sel" id="lLines"><option value="200">回放 200 行</option><option value="300" selected>回放 300 行</option><option value="1000">回放 1000 行</option></select>
+      <button class="btn" id="lStart" onclick="logStart()">开始</button>
+      <button class="btn stop" id="lStop" onclick="logStop()" disabled>停止</button>
+      <label style="color:var(--muted);font-size:12px"><input type="checkbox" id="lAuto" checked> 自动滚动</label>
+      <div class="sp"></div><button class="btn btn2" onclick="logClear()">清屏</button>
+      <span class="hint" id="lStat"></span>
+    </div>
+    <div class="logbox" id="lBox"><div class="muted">选择日志文件后点击「开始」。日志实时流经 SSE 下发，滚动轮转自动重开。</div></div>
+  </section>
+
+  <section class="page" id="pg-brand">
+    <div class="logo-edit"><img id="bLogo2" alt="logo">
+      <div><div>当前 Logo</div><div class="hint">将 <b>logo.png</b> 放入配置的 public_dir 覆盖目录即可生效（也支持 logo.svg / logo.jpg）</div></div>
+    </div>
+    <div class="kv"><h3>品牌信息（运行时更新，重启回落到 YAML 配置）</h3>
+      <table>
+        <tr><td>站点名称</td><td><input class="inp" id="bdName" style="width:320px"></td></tr>
+        <tr><td>标语</td><td><input class="inp" id="bdSlogan" style="width:320px"></td></tr>
+        <tr><td>Logo 地址</td><td><input class="inp" id="bdLogo" style="width:320px" placeholder="空=自动探测 /public/logo.*"> <span class="hint">如 /public/logo.png 或完整 URL</span></td></tr>
+      </table>
+    </div>
+    <button class="btn" onclick="brandSave()">保存并应用</button>
+    <button class="btn btn2" onclick="brandReset()" style="margin-left:8px">恢复 YAML 默认</button>
+    <div class="hint" style="margin-top:14px" id="bdHint"></div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+let ES_OK=false, POLL=null, LOG_ES=null, LOG_ON=false;
+
+/* ---------- 通用 ---------- */
+async function api(path,opts){const r=await fetch(path,Object.assign({headers:{'Content-Type':'application/json'}},opts||{}));return r}
+async function japi(path,opts){const r=await api(path,opts);const t=await r.text();try{return{j:JSON.parse(t),s:r.status}}catch(e){return{j:{raw:t},s:r.status}}}
+function toast(m,ok=true){const t=$('toast');t.textContent=m;t.style.borderColor=ok?'var(--border)':'var(--red)';t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',2200)}
+function fmtB(n){if(n==null||isNaN(n))return '—';n=Number(n);if(n<1024)return n+' B';const u=['KB','MB','GB','TB','PB'];let i=-1;do{n/=1024;i++}while(n>=1024&&i<u.length-1);return n.toFixed(n<10?2:1)+' '+u[i]}
+function fmtN(n){if(n==null||isNaN(n))return '—';return Number(n).toLocaleString('en-US')}
+function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function dotOf(s){return s==='green'?'dg':s==='yellow'?'dy':s==='red'?'dr':'dx'}
+function pillOf(s){const c=s==='green'?'pg':s==='yellow'?'py':s==='red'?'pr':'px';return `<span class="pill ${c}">${esc(s||'—')}</span>`}
+function bar(p){const w=Math.max(0,Math.min(100,p));const c=w>=90?'c':w>=75?'w':'';return `<div class="bar"><i class="${c}" style="width:${w}%"></i></div><span class="hint"> ${w.toFixed(0)}%</span>`}
+
+/* ---------- 品牌 ---------- */
+const FALLBACK_LOGO='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16222e"/><circle cx="28" cy="28" r="13" fill="none" stroke="#3ba3f0" stroke-width="5"/><line x1="38" y1="38" x2="50" y2="50" stroke="#3ba3f0" stroke-width="6" stroke-linecap="round"/></svg>');
+async function tryLogo(cands){for(const c of cands){try{const r=await fetch(c,{method:'HEAD'});if(r.ok)return c}catch(e){}}return ''}
+async function applyBrand(){
+  const {j}=await japi('/api/brand');
+  const name=j.name||'SearchBoard', slogan=j.slogan||'Elasticsearch 监控管理台';
+  let logo=j.logo;
+  if(!logo) logo=await tryLogo(['/public/logo.png','/public/logo.svg','/public/logo.jpg','/public/logo.webp']);
+  $('bLogo').src=logo||FALLBACK_LOGO; $('bLogo2').src=$('bLogo').src;
+  $('bName').textContent=name; $('bSlogan').textContent=slogan;
+  $('bdName').value=name; $('bdSlogan').value=slogan; $('bdLogo').value=j.logo||'';
+  document.title=name;
+  $('bdHint').textContent='';
+}
+async function brandSave(){
+  const body={name:$('bdName').value.trim(),slogan:$('bdSlogan').value.trim(),logo:$('bdLogo').value.trim()};
+  const {j,s}=await japi('/api/brand',{method:'POST',body:JSON.stringify(body)});
+  if(s===200){toast('品牌已更新');applyBrand()}else toast(j.error||'保存失败',false);
+}
+async function brandReset(){
+  const {j,s}=await japi('/api/brand/reset',{method:'POST',body:'{}'});
+  if(s===200){toast('已恢复 YAML 默认');applyBrand()}else toast(j.error||'失败',false);
+}
+
+/* ---------- 路由 ---------- */
+const TITLES={overview:'总览',nodes:'节点',indices:'索引',shards:'分片',rest:'REST 控制台',logs:'节点日志',brand:'品牌定制'};
+// 惰性引用（loadNodes 等为 let 可重赋值变量，调用时取当前值，避免 TDZ）
+const LOADERS={overview:loadOverview,nodes:()=>loadNodes(),indices:()=>loadIndices(),shards:()=>loadShards()};
+function nav(p){
+  document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('on',a.dataset.p===p));
+  document.querySelectorAll('.page').forEach(s=>s.classList.toggle('on',s.id==='pg-'+p));
+  $('pgTitle').textContent=TITLES[p]||p;
+  if(p!=='logs')hdrExtra('');
+  (LOADERS[p]||(()=>{}))();
+}
+document.querySelectorAll('nav a').forEach(a=>a.onclick=()=>{location.hash=a.dataset.p});
+window.addEventListener('hashchange',()=>nav(location.hash.slice(1)||'overview'));
+
+/* ---------- 总览 ---------- */
+function hdrExtra(s){$('hdrExtra').textContent=s}
+async function loadOverview(){
+  const {j:h,s}=await japi('/api/health');
+  if(!h.ok){$('ovHealth').innerHTML='<span class="err">ES 不可达</span>';setES(false,h.error||'连接失败');return}
+  setES(true);
+  const hh=h.health||{};
+  const st=hh.status||'—';
+  $('ovHealth').innerHTML=`<span class="dot ${dotOf(st)}"></span>${esc(st)}`;
+  // 索引/文档/存储：优先 _cluster/stats，缺失时用 _cat/indices 聚合兜底
+  const {j:cs}=await japi('/api/es/stats');
+  const {j:idx}=await japi('/api/es/indices');
+  const idxArr=Array.isArray(idx)?idx:[];
+  let docs=null,store=null;
+  if(cs._all&&cs._all.total){docs=cs._all.total.docs&&cs._all.total.docs.count;store=cs._all.total.store&&cs._all.total.store.size_in_bytes}
+  if(docs==null&&idxArr.length){docs=idxArr.reduce((a,r)=>a+(Number(r['docs.count'])||0),0)}
+  if(store==null&&idxArr.length){store=idxArr.reduce((a,r)=>a+(Number(r['docs.store.size']||r['store.size'])||0),0)}
+  const {j:rt}=await japi('/api/es/root');
+  $('ovNodes').textContent=hh.number_of_nodes??'—';
+  $('ovIndices').textContent=idxArr.length||'—';
+  $('ovDocs').textContent=fmtN(docs);
+  $('ovStore').textContent=fmtB(store);
+  $('ovShards').textContent=(hh.active_shards??'—')+' / '+(hh.active_shards??'—');
+  if(cs.indices&&cs.indices.shards) $('ovShards').textContent=(cs.indices.shards.total??'—')+' / '+(hh.active_shards??'—');
+  const ver=(rt.version&&rt.version.number)||(cs.nodes&&cs.nodes.versions||[]).join(', ')||'—';
+  $('ovCluster').innerHTML=[
+    ['集群名',hh.cluster_name],['集群 UUID',rt.cluster_uuid],
+    ['状态',pillOf(st)],['数据节点 / 总节点',(hh.number_of_data_nodes??'—')+' / '+(hh.number_of_nodes??'—')],
+    ['待分配分片',hh.delayed_unassigned_shards??0],['任务队列 / 未分配',(hh.task_max_waiting_in_queue??0)+' / '+(hh.unassigned_shards??0)],
+    ['版本',ver],
+  ].map(r=>`<tr><td>${r[0]}</td><td>${r[1]??'—'}</td></tr>`).join('');
+  const {j:ns}=await japi('/api/es/nodes');
+  const nodes=Object.values((ns.nodes)||{});
+  $('ovRes').innerHTML=nodes.map(n=>{
+    const hp=n.jvm&&n.jvm.mem&&n.jvm.mem.heap_used_percent;
+    const fs_=n.fs&&n.fs.total;
+    const dsk=fs_&&fs_.total_in_bytes?100*(fs_.total_in_bytes-(fs_.free_in_bytes||0))/fs_.total_in_bytes:null;
+    const cp=n.os&&n.os.cpu&&n.os.cpu.percent;
+    return `<tr><td>${esc(n.name)}</td><td style="width:260px">堆 ${bar(hp||0)}</td><td style="width:260px">磁盘 ${bar(dsk||0)}</td><td style="width:240px">CPU ${bar(cp||0)}</td><td class="hint">${fmtB(fs_&&fs_.total_in_bytes)} 总量</td></tr>`;
+  }).join('')||'<tr><td class="hint">无数据</td></tr>';
+}
+function setES(ok,msg){ES_OK=ok;$('fEs').textContent=(ok?'● ES 已连接':'● ES 不可达')+(msg&&ok?'':'');$('fEs').style.color=ok?'var(--green)':'var(--red)'}
+
+/* ---------- 节点 ---------- */
+function nodeRows(filter){
+  return async()=>{
+    const {j:ns}=await japi('/api/es/nodes');
+    const nodes=Object.values(ns.nodes||{}).sort((a,b)=>a.name.localeCompare(b.name));
+    const f=(filter||'').toLowerCase();
+    const rows=nodes.filter(n=>!f||n.name.toLowerCase().includes(f));
+    $('tNodes').innerHTML='<tr><th>节点</th><th>地址</th><th>角色</th><th>JVM 堆</th><th>磁盘</th><th>CPU</th><th>文档</th><th>索引缓冲</th><th>版本</th></tr>'+
+    (rows.map(n=>{
+      const jv=n.jvm&&n.jvm.mem,fs_=n.fs&&n.fs.total,oi=n.indices;
+      const dsk=fs_&&fs_.total_in_bytes?100*(fs_.total_in_bytes-(fs_.free_in_bytes||0))/fs_.total_in_bytes:null;
+      const roles=(n.roles||[]).map(r=>r.replace('ingest','')).filter(Boolean).join(',');
+      const hp=jv&&jv.heap_used_percent||0;
+      return `<tr><td>${esc(n.name)}</td><td class="hint">${esc(n.ip||'')}</td><td class="hint">${esc(roles)}</td>
+      <td>${bar(hp)} <span class="hint">${fmtB(jv&&jv.heap_used_in_bytes)} / ${fmtB(jv&&jv.heap_max_in_bytes)}</span></td>
+      <td>${bar(dsk||0)} <span class="hint">${fmtB(fs_&&fs_.free_in_bytes)} 空闲</span></td>
+      <td>${bar((n.os&&n.os.cpu&&n.os.cpu.percent)||0)}</td>
+      <td>${fmtN(oi&&oi.docs&&oi.docs.count)}</td>
+      <td class="hint">${fmtB(oi&&oi.indexing&&oi.indexing.index_size_in_bytes)}/s 写 · ${fmtN(oi&&oi.search&&oi.search.query_total)} 查询</td>
+      <td class="hint">${esc(n.version||'')}</td></tr>`;
+    }).join('')||'<tr><td colspan="9" class="hint">无匹配节点</td></tr>');
+  };
+}
+let loadNodes=nodeRows('');
+$('nFilter').oninput=e=>{loadNodes=nodeRows(e.target.value);loadNodes()};
+
+/* ---------- 索引 ---------- */
+function idxRows(filter){
+  return async()=>{
+    const {j,s}=await japi('/api/es/indices');
+    const arr=Array.isArray(j)?j:[];
+    const f=(filter||'').toLowerCase();
+    const rows=arr.filter(r=>!f||(r.index||'').toLowerCase().includes(f));
+    $('tIndices').innerHTML='<tr><th>健康</th><th>状态</th><th>索引名</th><th>UUID</th><th>主分片</th><th>副本</th><th>文档</th><th>存储</th><th>创建时间</th></tr>'+
+    (rows.map(r=>{
+      const ct=r['creation.date.string']||'';
+      return `<tr><td>${pillOf(r.health)}</td><td class="hint">${esc(r.status)}</td><td>${esc(r.index)}</td>
+      <td class="hint" style="font-family:var(--mono)">${esc(r.uuid)}</td><td>${esc(r.pri)}</td><td>${esc(r.rep)}</td>
+      <td>${fmtN(r['docs.count'])}</td><td>${fmtB(r['docs.store.size']||r['store.size'])}</td><td class="hint">${esc(ct)}</td></tr>`;
+    }).join('')||'<tr><td colspan="9" class="hint">无索引或 ES 不可达</td></tr>');
+  };
+}
+let loadIndices=idxRows('');
+$('iFilter').oninput=e=>{loadIndices=idxRows(e.target.value);loadIndices()};
+
+/* ---------- 分片 ---------- */
+function shardRows(filter,state){
+  return async()=>{
+    const {j}=await japi('/api/es/shards');
+    const arr=Array.isArray(j)?j:[];
+    const f=(filter||'').toLowerCase();
+    const rows=arr.filter(r=>(!f||(r.index||'').toLowerCase().includes(f))&&(!state||r.state===state));
+    const statePill=s=>`<span class="pill ${s==='STARTED'?'pg':s==='UNASSIGNED'?'px':s==='RELOCATING'?'py':'pr'}">${esc(s)}</span>`;
+    $('tShards').innerHTML='<tr><th>索引</th><th>分片</th><th>主/副</th><th>状态</th><th>存储</th><th>文档</th><th>节点</th></tr>'+
+    (rows.map(r=>`<tr><td>${esc(r.index)}</td><td>${esc(r.shard)}</td><td>${esc(r.prirep==='p'?'主':'副')}</td>
+    <td>${statePill(r.state)}</td><td>${fmtB(r.store)}</td><td>${fmtN(r.docs)}</td><td class="hint">${esc(r.node||'—')}</td></tr>`).join('')||'<tr><td colspan="7" class="hint">无匹配分片</td></tr>');
+  };
+}
+let loadShards=shardRows('','');
+$('sFilter').oninput=e=>{loadShards=shardRows(e.target.value,$('sState').value);loadShards()};
+$('sState').onchange=e=>{loadShards=shardRows($('sFilter').value,e.target.value);loadShards()};
+
+/* ---------- REST 控制台 ---------- */
+function restQuick(p){$('rMethod').value='GET';$('rPath').value=p;restSend()}
+async function restSend(){
+  const m=$('rMethod').value,p=$('rPath').value.trim()||'/';
+  const body=m==='GET'||m==='HEAD'?null:$('rBody').value.trim();
+  const t0=performance.now();
+  $('rResp').textContent='请求中…';
+  try{
+    const r=await api('/api/es/rest',{method:'POST',body:JSON.stringify({method:m,path:p,body:body||null})});
+    const es=r.headers.get('X-ES-Status')||'-';
+    const t=await r.text();
+    const ms=(performance.now()-t0).toFixed(0);
+    $('rMeta').textContent=`HTTP ${r.status}（ES ${es}）· ${ms} ms · ${fmtB(t.length)}`;
+    try{$('rResp').textContent=JSON.stringify(JSON.parse(t),null,2)}catch(e){$('rResp').textContent=t||'(空响应)'}
+  }catch(e){$('rResp').textContent='请求失败：'+e.message}
+}
+function copyResp(){navigator.clipboard.writeText($('rResp').textContent).then(()=>toast('已复制响应'))}
+
+/* ---------- 日志 ---------- */
+async function logLoadFiles(){
+  const {j}=await japi('/api/logs');
+  const sel=$('lFile');sel.innerHTML='';
+  if(!j.ok||!(j.files||[]).length){sel.innerHTML='<option value="">（无可用日志文件'+(j.error?'：'+esc(j.error):'）')+'</option>';return}
+  sel.innerHTML=j.files.map(f=>`<option value="${esc(f.name)}">${esc(f.name)} · ${fmtB(f.size)}</option>`).join('');
+}
+async function logStart(){
+  if(LOG_ON)return;
+  const f=$('lFile').value;if(!f){toast('请先选择日志文件',false);return}
+  const lines=$('lLines').value;
+  LOG_ES=new EventSource(`/api/logs/stream?file=${encodeURIComponent(f)}&lines=${lines}`);
+  LOG_ON=true;$('lStart').disabled=true;$('lStop').disabled=false;logStat('连接中…');
+  LOG_ES.addEventListener('line',e=>{
+    logAppend(JSON.parse(e.data));
+    logStat('实时追踪中 · '+$('lBox').childElementCount+' 行');
+  });
+  LOG_ES.addEventListener('ready',()=>logStat('历史回放完成，实时追踪中'));
+  LOG_ES.addEventListener('rotate',()=>{logAppend('—— 日志轮转，已从头重开 ——');toast('日志已轮转')});
+  LOG_ES.addEventListener('error',e=>{if(e.data)logAppend('—— '+JSON.parse(e.data)+' ——')});
+  LOG_ES.addEventListener('end',()=>{logStat('已结束');logStop()});
+}
+function logStop(){
+  if(LOG_ES){LOG_ES.close();LOG_ES=null}
+  LOG_ON=false;$('lStart').disabled=false;$('lStop').disabled=true;logStat('已停止');
+}
+function logClear(){$('lBox').innerHTML='';logStat('')}
+function logStat(s){$('lStat').textContent=s}
+function logAppend(text){
+  const box=$('lBox');
+  if(box.firstChild&&box.firstChild.classList&&box.firstChild.classList.contains('muted'))box.innerHTML='';
+  const d=document.createElement('div');d.textContent=text;
+  if(/^\d{4}-\d{2}-\d{2}[T\s]/.test(text))d.style.borderTop='1px solid rgba(255,255,255,.04)';
+  if(/\bERROR\b|\berror\b|Exception|FATAL/.test(text))d.style.color='var(--red)';
+  else if(/\bWARN\b|warning/i.test(text))d.style.color='var(--yellow)';
+  box.appendChild(d);
+  while(box.childElementCount>8000)box.removeChild(box.firstChild);
+  if($('lAuto').checked)box.scrollTop=box.scrollHeight;
+}
+$('lFile').onfocus=logLoadFiles;
+window.addEventListener('beforeunload',()=>{if(LOG_ES)LOG_ES.close()});
+
+/* ---------- 启动 ---------- */
+async function boot(){
+  const {j}=await japi('/api/state');
+  $('fVer').textContent='SearchBoard v'+(j.version||'0.1');
+  await applyBrand();
+  await logLoadFiles();
+  const p=location.hash.slice(1)||'overview';nav(p);
+  if(j.es&&j.es.ok){setES(true);hdrExtra('ES '+(j.es.version&&(j.es.version.number)||'')+' · '+(j.es.clusterName||''))}
+  else{setES(false);hdrExtra('ES 未连接，请检查 searchboard.yml 配置')}
+  clearInterval(POLL);
+  POLL=setInterval(async()=>{
+    const {j:h}=await japi('/api/health');
+    if(h.ok&&!ES_OK){setES(true);toast('ES 已恢复连接')}
+    if(!h.ok&&ES_OK){setES(false);toast('ES 连接中断',false)}
+    if(document.querySelector('#pg-overview.on')&&h.ok)loadOverview();
+  },10000);
+}
+boot();
+</script>
+</body>
+</html>
