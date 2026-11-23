@@ -50,8 +50,10 @@ func main() {
 		Logo:   cfg.Brand.Logo,
 	})
 
-	// VFS：embed 基座（底层）→ public_dir 覆盖层（顶层，参数顺序即优先级）
-	layers := []vfs.Layer{vfs.EmbedLayer(webFS, "web")}
+	// VFS 分层（参数顺序即优先级）：运行时 Mem 层（logo 上传临时写）→
+	// public_dir 覆盖层（持久品牌资源）→ embed 基座
+	mem := vfs.MemLayer()
+	layers := []vfs.Layer{mem, vfs.EmbedLayer(webFS, "web")}
 	if cfg.PublicDir != "" {
 		if st, err := os.Stat(cfg.PublicDir); err == nil && st.IsDir() {
 			layers = append(layers, vfs.DirLayer(cfg.PublicDir))
@@ -71,7 +73,14 @@ func main() {
 	})
 
 	srv.Use(gzip.Middleware(gzip.Config{}))
-	api.Register(srv, api.Options{ES: esClient, Tail: tailer, Brand: brand, Version: version})
+	api.Register(srv, api.Options{
+		ES:        esClient,
+		Tail:      tailer,
+		Brand:     brand,
+		Version:   version,
+		PublicDir: cfg.PublicDir,
+		Stack:     stack,
+	})
 
 	// /public/* → 覆盖层静态资源（品牌 logo 等）；404 由前端回退默认图
 	srv.GET("/public/*path", static.Handler(stack, static.Options{StripPrefix: "/public"}))

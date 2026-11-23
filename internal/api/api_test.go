@@ -3,6 +3,7 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,10 +12,17 @@ import (
 	"time"
 
 	"github.com/ezscloud/searchboard/framework"
+	"github.com/ezscloud/searchboard/framework/ext/static"
 	"github.com/ezscloud/searchboard/framework/transport"
+	"github.com/ezscloud/searchboard/framework/vfs"
 	"github.com/ezscloud/searchboard/internal/es"
 	"github.com/ezscloud/searchboard/internal/logtail"
 )
+
+// staticHandler 便捷封装（对齐 main.go 装配）。
+func staticHandler(st *vfs.Stack) framework.HandlerFunc {
+	return static.Handler(st, static.Options{StripPrefix: "/public"})
+}
 
 // startMockES 启动假 ES 源（独立端口），返回 base URL。
 func startMockES(t *testing.T) string {
@@ -55,15 +63,28 @@ func startMockES(t *testing.T) string {
 // startBoard 启动 searchboard API 服务，返回 base URL。
 func startBoard(t *testing.T, esURL, logDir string) string {
 	t.Helper()
+	return startBoardWithOpts(t, esURL, logDir, func(o *Options) {})
+}
+
+// startBoardWithOpts 定制 Options 的启动变体。
+func startBoardWithOpts(t *testing.T, esURL, logDir string, tune func(*Options)) string {
+	t.Helper()
 	srv := framework.New(framework.Config{Addr: "127.0.0.1:0", Transport: "std"})
 	tailer := logtail.New(logDir, "*.log", 20*time.Millisecond, 100)
-	Register(srv, Options{
+	opts := Options{
 		ES:                es.New(esURL, "", "", false),
 		Tail:              tailer,
 		Brand:             NewBrandState(Brand{Name: "Board-Default", Slogan: "default slogan", Logo: ""}),
 		Version:           "test",
 		HeartbeatInterval: 200 * time.Millisecond, // 加速断开感知测试
-	})
+	}
+	if tune != nil {
+		tune(&opts)
+	}
+	Register(srv, opts)
+	if opts.Stack != nil {
+		srv.GET("/public/*path", staticHandler(opts.Stack))
+	}
 	if err := srv.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -327,5 +348,89 @@ func TestLogsListAndReject(t *testing.T) {
 	code, b = getBody(t, board+"/api/logs/stream?file=..%2Fsecret.txt&lines=1")
 	if code != 400 {
 		t.Errorf("traversal should 400, got %d body=%s", code, b)
+	}
+}
+
+// TestBrandLogoUpload logo 上传全链路：Mem 层写入 → /public/logo.png 可读 → 清除。
+func TestBrandLogoUpload(t *testing.T) {
+	esURL := startMockES(t)
+	board := startBoardWithOpts(t, esURL, t.TempDir(), func(o *Options) {
+		o.Stack = vfs.NewStack(vfs.MemLayer())
+	})
+
+	post := func(body string) (int, []byte) {
+		t.Helper()
+		client := framework.NewClient()
+		req := framework.NewClientRequest(context.Background(), "POST", board+"/api/brand/logo", nil)
+		req.SetBodyBytes([]byte(body))
+		r, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := r.ReadAll()
+		r.Close()
+		return r.StatusCode, b
+	}
+
+	// 非法扩展名拒绝
+	code, b := post(`{"name":"evil.exe","data":"eA=="}`)
+	if code != 400 || !strings.Contains(string(b), "仅支持") {
+		t.Errorf("bad ext should 400, got %d %s", code, b)
+	}
+
+	// 上传（运行时 Mem 层）
+	code, b = post(`{"name":"logo.png","data":"` + base64.StdEncoding.EncodeToString([]byte("pngdata-fake")) + `"}`)
+	if code != 200 || !strings.Contains(string(b), `"persisted":false`) {
+		t.Fatalf("upload: code=%d body=%s", code, b)
+	}
+
+	// /public/logo.png 可读且内容一致
+	code, b = getBody(t, board+"/public/logo.png")
+	if code != 200 || string(b) != "pngdata-fake" {
+		t.Fatalf("public read: code=%d body=%q", code, b)
+	}
+
+	// 覆盖为 svg（清理旧 png）
+	code, b = post(`{"name":"logo.svg","data":"` + base64.StdEncoding.EncodeToString([]byte("<svg/>")) + `"}`)
+	if code != 200 {
+		t.Fatalf("svg upload: %d %s", code, b)
+	}
+	code, b = getBody(t, board+"/public/logo.png")
+	if code != 404 {
+		t.Errorf("old png should be cleaned, got %d", code)
+	}
+
+	// 清除（Mem 宽删除语义：不存在也成功，removed 计含同层其他扩展）
+	code, b = post(`{"clear":true}`)
+	if code != 200 {
+		t.Fatalf("clear: %d %s", code, b)
+	}
+	code, _ = getBody(t, board+"/public/logo.svg")
+	if code != 404 {
+		t.Errorf("after clear logo should 404, got %d", code)
+	}
+}
+
+// TestBrandLogoPersist PublicDir 模式落盘。
+func TestBrandLogoPersist(t *testing.T) {
+	esURL := startMockES(t)
+	pub := t.TempDir()
+	board := startBoardWithOpts(t, esURL, t.TempDir(), func(o *Options) {
+		o.PublicDir = pub
+	})
+	client := framework.NewClient()
+	req := framework.NewClientRequest(context.Background(), "POST", board+"/api/brand/logo", nil)
+	req.SetBodyBytes([]byte(`{"name":"logo.png","data":"cGVyc2lzdGVk"}`))
+	r, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := r.ReadAll()
+	r.Close()
+	if !strings.Contains(string(b), `"persisted":true`) {
+		t.Fatalf("persist upload: %s", b)
+	}
+	if data, err := os.ReadFile(filepath.Join(pub, "logo.png")); err != nil || string(data) != "persisted" {
+		t.Fatalf("file on disk: %v %q", err, data)
 	}
 }

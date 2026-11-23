@@ -71,6 +71,14 @@ pre.code{background:#0c1015;border:1px solid var(--border);border-radius:10px;pa
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--border);padding:9px 18px;border-radius:9px;font-size:13px;display:none;box-shadow:0 4px 18px rgba(0,0,0,.4);z-index:99}
 .muted{color:var(--muted)}
 .loading{color:var(--muted);padding:30px;text-align:center}
+.mini{background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;margin:0 2px}
+.mini:hover{border-color:var(--accent);color:var(--accent)}
+.mini.danger:hover{border-color:var(--red);color:var(--red)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:50}
+.modal.on{display:flex}
+.modal .card2{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:22px 26px;width:min(480px,90vw)}
+.modal h3{font-size:15px;margin-bottom:14px}
+.modal .mrow{margin-top:16px;display:flex;gap:8px;justify-content:flex-end}
 .logo-edit{display:flex;align-items:center;gap:14px;margin-bottom:14px}
 .logo-edit img{width:52px;height:52px;border-radius:10px;object-fit:contain;background:#0c1015;border:1px solid var(--border);padding:3px}
 </style>
@@ -86,6 +94,8 @@ pre.code{background:#0c1015;border:1px solid var(--border);border-radius:10px;pa
     <a data-p="nodes"><span class="ic">☰</span>节点</a>
     <a data-p="indices"><span class="ic">▤</span>索引</a>
     <a data-p="shards"><span class="ic">▦</span>分片</a>
+    <a data-p="aliases"><span class="ic">◫</span>别名</a>
+    <a data-p="ops"><span class="ic">⚙</span>集群运维</a>
     <a data-p="rest"><span class="ic">⌘</span>REST 控制台</a>
     <a data-p="logs"><span class="ic">≡</span>节点日志</a>
     <a data-p="brand"><span class="ic">✎</span>品牌定制</a>
@@ -116,6 +126,33 @@ pre.code{background:#0c1015;border:1px solid var(--border);border-radius:10px;pa
   <section class="page" id="pg-indices">
     <div class="row"><input class="inp" id="iFilter" placeholder="过滤索引…" style="width:220px"><div class="sp"></div><button class="btn" onclick="loadIndices()">刷新</button></div>
     <table class="tbl" id="tIndices"></table>
+  </section>
+
+  <section class="page" id="pg-aliases">
+    <div class="row"><input class="inp" id="alFilter" placeholder="过滤别名/索引…" style="width:220px">
+      <div class="sp"></div><button class="btn" onclick="loadAliases()">刷新</button>
+      <button class="btn btn2" onclick="aliasModalShow()">新增别名</button></div>
+    <table class="tbl" id="tAliases"></table>
+    <div class="hint" style="margin-top:10px">别名（alias）是索引的软链接：写入路由/读入统一入口，重建索引时可无感切换。操作直接影响集群，谨慎执行。</div>
+  </section>
+
+  <section class="page" id="pg-ops">
+    <div class="kv"><h3>集群设置（transient，离开本页不回滚）</h3>
+      <table>
+        <tr><td style="width:260px">分片均衡开关</td>
+          <td><select class="sel" id="opBalance"><option value="">（读取当前值…）</option><option value="true">开启（默认）</option><option value="false">关闭</option></select>
+          <button class="btn btn2" onclick="opsSetBalance()">应用</button></td></tr>
+        <tr><td>并发分片恢复数</td>
+          <td><input class="inp" id="opRecover" style="width:80px" type="number" min="1" max="64">
+          <button class="btn btn2" onclick="opsSetRecover()">应用</button> <span class="hint">默认 2；节点重启/副本重建提速用，过大易压硬盘</span></td></tr>
+      </table>
+      <button class="btn btn2" style="margin-top:10px" onclick="opsReadSettings()">读取当前集群设置</button>
+      <pre class="code" id="opSettings" style="margin-top:10px;max-height:30vh">点「读取当前集群设置」查看</pre>
+    </div>
+    <div class="kv"><h3>节点排水（drain：阻止分片分配到该节点，用于重启/下线）</h3>
+      <table class="tbl" id="tOpsNodes"></table>
+      <div class="row" style="margin-top:10px"><span class="hint">排水 = 给节点加 `index: forbidden? Hold... ` 过滤规则（allocation exclude）——可随时移除恢复。分片会经网络迁移，注意磁盘与时长。</span></div>
+    </div>
   </section>
 
   <section class="page" id="pg-shards">
@@ -159,7 +196,12 @@ pre.code{background:#0c1015;border:1px solid var(--border);border-radius:10px;pa
 
   <section class="page" id="pg-brand">
     <div class="logo-edit"><img id="bLogo2" alt="logo">
-      <div><div>当前 Logo</div><div class="hint">将 <b>logo.png</b> 放入配置的 public_dir 覆盖目录即可生效（也支持 logo.svg / logo.jpg）</div></div>
+      <div><div>当前 Logo</div><div class="hint">上传（≤256KB，png/svg/jpg/webp）或手动将 logo.png 放入 public_dir</div>
+      <input type="file" id="bdFile" accept=".png,.svg,.jpg,.jpeg,.webp" style="display:none" onchange="brandLogoFile(this)">
+      <div style="margin-top:8px">
+        <button class="btn" onclick="document.getElementById('bdFile').click()">上传 Logo</button>
+        <button class="btn btn2" id="bdLogoClear" onclick="brandLogoClear()" style="margin-left:8px">清除已上传</button>
+      </div></div>
     </div>
     <div class="kv"><h3>品牌信息（运行时更新，重启回落到 YAML 配置）</h3>
       <table>
@@ -174,6 +216,9 @@ pre.code{background:#0c1015;border:1px solid var(--border);border-radius:10px;pa
   </section>
 </main>
 <div class="toast" id="toast"></div>
+<div class="modal" id="modal" onclick="if(event.target===this)modalClose()">
+  <div class="card2" id="modalBody"></div>
+</div>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
@@ -215,9 +260,9 @@ async function brandReset(){
 }
 
 /* ---------- 路由 ---------- */
-const TITLES={overview:'总览',nodes:'节点',indices:'索引',shards:'分片',rest:'REST 控制台',logs:'节点日志',brand:'品牌定制'};
+const TITLES={overview:'总览',nodes:'节点',indices:'索引',shards:'分片',aliases:'别名',ops:'集群运维',rest:'REST 控制台',logs:'节点日志',brand:'品牌定制'};
 // 惰性引用（loadNodes 等为 let 可重赋值变量，调用时取当前值，避免 TDZ）
-const LOADERS={overview:loadOverview,nodes:()=>loadNodes(),indices:()=>loadIndices(),shards:()=>loadShards()};
+const LOADERS={overview:loadOverview,nodes:()=>loadNodes(),indices:()=>loadIndices(),shards:()=>loadShards(),aliases:()=>loadAliases(),ops:()=>loadOps()};
 function nav(p){
   document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('on',a.dataset.p===p));
   document.querySelectorAll('.page').forEach(s=>s.classList.toggle('on',s.id==='pg-'+p));
@@ -304,13 +349,17 @@ function idxRows(filter){
     const arr=Array.isArray(j)?j:[];
     const f=(filter||'').toLowerCase();
     const rows=arr.filter(r=>!f||(r.index||'').toLowerCase().includes(f));
-    $('tIndices').innerHTML='<tr><th>健康</th><th>状态</th><th>索引名</th><th>UUID</th><th>主分片</th><th>副本</th><th>文档</th><th>存储</th><th>创建时间</th></tr>'+
+    $('tIndices').innerHTML='<tr><th>健康</th><th>状态</th><th>索引名</th><th>UUID</th><th>主分片</th><th>副本</th><th>文档</th><th>存储</th><th>创建时间</th><th>操作</th></tr>'+
     (rows.map(r=>{
       const ct=r['creation.date.string']||'';
       return `<tr><td>${pillOf(r.health)}</td><td class="hint">${esc(r.status)}</td><td>${esc(r.index)}</td>
       <td class="hint" style="font-family:var(--mono)">${esc(r.uuid)}</td><td>${esc(r.pri)}</td><td>${esc(r.rep)}</td>
-      <td>${fmtN(r['docs.count'])}</td><td>${fmtB(r['docs.store.size']||r['store.size'])}</td><td class="hint">${esc(ct)}</td></tr>`;
-    }).join('')||'<tr><td colspan="9" class="hint">无索引或 ES 不可达</td></tr>');
+      <td>${fmtN(r['docs.count'])}</td><td>${fmtB(r['docs.store.size']||r['store.size'])}</td><td class="hint">${esc(ct)}</td>
+      <td>
+        <button class="mini danger" onclick="idxDelete('${esc(r.index)}')">删除</button>
+        <button class="mini" onclick="idxToggle('${esc(r.index)}','${r.status==='open'?'close':'open'}')">${r.status==='open'?'关闭':'打开'}</button>
+      </td></tr>`;
+    }).join('')||'<tr><td colspan="10" class="hint">无索引或 ES 不可达</td></tr>');
   };
 }
 let loadIndices=idxRows('');
@@ -394,6 +443,152 @@ $('lFile').onfocus=logLoadFiles;
 window.addEventListener('beforeunload',()=>{if(LOG_ES)LOG_ES.close()});
 
 /* ---------- 启动 ---------- */
+/* ---------- 确认弹窗 & 索引操作 ---------- */
+function modalClose(){$('modal').classList.remove('on')}
+function modalConfirm(title,msg,okText,danger,onOk){
+  $('modalBody').innerHTML=`<h3>${esc(title)}</h3><div style="font-size:13.5px;line-height:1.7">${msg}</div>
+  <div class="mrow"><button class="btn btn2" onclick="modalClose()">取消</button>
+  <button class="btn ${danger?'stop':''}" id="mOk">${esc(okText||'确认')}</button></div>`;
+  $('modal').classList.add('on');
+  $('mOk').onclick=async()=>{modalClose();await onOk()};
+}
+async function esAction(method,path,body,onDone){
+  const {j,s}=await japi('/api/es/rest',{method:'POST',body:JSON.stringify({method,path,body:body||null})});
+  if(s===200){toast('操作成功');onDone&&onDone()}else toast((j.error||`ES 拒绝（HTTP ${s}）`),false);
+  return {j,s};
+}
+function idxDelete(name){
+  modalConfirm('删除索引',`即将 <b>永久删除</b> 索引 <code>${esc(name)}</code> 及其全部数据（不可恢复）。<br><br>建议先确认快照/备份存在。`,'删除索引',true,
+    ()=>esAction('DELETE','/'+name,null,loadIndices));
+}
+function idxToggle(name,action){
+  const closing=action==='close';
+  modalConfirm(`${closing?'关闭':'打开'}索引`,
+    `索引 <code>${esc(name)}</code> 将被 ${closing?'关闭（数据保留，读写拒绝，省内存）':'重新打开'}。`,
+    closing?'关闭':'打开',closing,
+    ()=>esAction('POST',`/${name}/_${action===undefined?'':action}`,null,loadIndices));
+}
+
+/* ---------- 别名管理 ---------- */
+async function loadAliases(){
+  const {j}=await japi('/api/es/rest',{method:'POST',body:JSON.stringify({method:'GET',path:'/_cat/aliases?format=json'})});
+  const arr=Array.isArray(j)?j:[];
+  const f=($('alFilter').value||'').toLowerCase();
+  const rows=arr.filter(r=>!f||(r.alias||'').toLowerCase().includes(f)||(r.index||'').toLowerCase().includes(f));
+  $('tAliases').innerHTML='<tr><th>别名</th><th>指向索引</th><th>过滤</th><th>路由索引</th><th>路由搜索</th><th>是否写别名</th><th>操作</th></tr>'+
+  (rows.map(r=>`<tr><td>${esc(r.alias)}</td><td>${esc(r.index)}</td>
+    <td class="hint">${r['filter']?esc(r['filter']):'—'}</td>
+    <td class="hint">${esc(r['index.routing.index']||'—')}</td>
+    <td class="hint">${esc(r['index.routing.search']||'—')}</td>
+    <td>${r['is_write_index']==='true'?'✓':'—'}</td>
+    <td><button class="mini danger" onclick="aliasRemove('${esc(r.alias)}','${esc(r.index)}')">移除</button></td></tr>`).join('')
+   ||'<tr><td colspan="7" class="hint">无别名（或 ES 不可达）</td></tr>');
+}
+function aliasRemove(alias,index){
+  modalConfirm('移除别名',`将移除别名 <code>${esc(alias)}</code> 对索引 <code>${esc(index)}</code> 的指向。<br>只删别名关系，不动索引数据。`,'移除',true,
+    ()=>esAction('DELETE',`/${index}/_alias/${alias}`,null,loadAliases));
+}
+function aliasModalShow(){
+  $('modalBody').innerHTML=`<h3>新增别名</h3>
+  <table>
+    <tr><td style="width:110px;padding:6px 8px">别名名</td><td><input class="inp" id="amName" style="width:100%" placeholder="如 logs-readonly"></td></tr>
+    <tr><td style="padding:6px 8px">指向索引</td><td><input class="inp" id="amIndex" style="width:100%" placeholder="如 logs-app-2026.11"></td></tr>
+  </table>
+  <div class="hint" style="margin-top:8px">ES 7+ 不允许别名指向关闭的索引。</div>
+  <div class="mrow"><button class="btn btn2" onclick="modalClose()">取消</button>
+  <button class="btn" id="amOk" onclick="aliasAdd()">创建</button></div>`;
+  $('modal').classList.add('on');
+}
+async function aliasAdd(){
+  const name=$('amName').value.trim(),index=$('amIndex').value.trim();
+  if(!name||!index){toast('别名与索引均必填',false);return}
+  modalClose();
+  await esAction('POST',`/${index}/_alias/${name}`,null,loadAliases);
+}
+
+/* ---------- 集群运维 ---------- */
+async function loadOps(){
+  opsReadSettings();
+  const {j}=await japi('/api/es/rest',{method:'POST',body:JSON.stringify({method:'GET',path:'/_cat/nodes?format=json&h=name,ip,role,master,heap.percent,disk.used.percent,load_1m'})});
+  const arr=Array.isArray(j)?j:[];
+  $('tOpsNodes').innerHTML='<tr><th>节点</th><th>地址</th><th>角色</th><th>master</th><th>堆%</th><th>磁盘%</th><th>load 1m</th><th>分片分配</th><th>操作</th></tr>'+
+  (rowsHtml(arr)||'<tr><td colspan="9" class="hint">无节点数据</td></tr>');
+  function rowsHtml(arr){return arr.map(n=>{
+    const name=esc(n.name);
+    return `<tr><td>${name}</td><td class="hint">${esc(n.ip||'')}</td><td class="hint">${esc(n.role||'')}</td>
+    <td>${esc(n.master==='true'?'●':'—')}</td><td>${esc(n['heap.percent']??'—')}</td><td>${esc(n['disk.used.percent']??'—')}</td><td>${esc(n['load_1m']??'—')}</td>
+    <td class="hint" id="drain-${name}">未知（读取中…）</td>
+    <td><button class="mini" onclick="opsDrain('${name}',true)">排水</button>
+    <button class="mini" onclick="opsDrain('${name}',false)">恢复分配</button></td></tr>`;
+  }).join('')}
+  // 读取每节点排除规则填充“分片分配”列
+  const {j:ex}=await japi('/api/es/rest',{method:'POST',body:JSON.stringify({method:'GET',path:'/_cluster/settings?include_defaults=true&filter_path=defaults.cluster.routing.allocation.exclude._name'})});
+  const excluded=((ex.defaults&&ex.defaults.cluster&&ex.defaults.cluster.routing&&ex.defaults.cluster.routing.allocation&&ex.defaults.cluster.routing.allocation.exclude&&ex.defaults.cluster.routing.allocation.exclude._name)||'').split(',');
+  arr.forEach(n=>{
+    const el=$('drain-'+CSS.escape(n.name));
+    if(el){const draining=excluded.includes(n.name);el.textContent=draining?'已排水（排除分片）':'正常接收分片';el.style.color=draining?'var(--yellow)':'var(--green)'}
+  });
+}
+async function opsReadSettings(){
+  const {j}=await japi('/api/es/rest',{method:'POST',body:JSON.stringify({method:'GET',path:'/_cluster/settings?include_defaults=true&filter_path=defaults.cluster.routing.allocation.enable,defaults.cluster.routing.allocation.node_concurrent_recoveries,transient.cluster.routing.allocation.enable,transient.cluster.routing.allocation.node_concurrent_recoveries'})});
+  const d=j.defaults||{},t=j.transient||{};
+  const bal=((t.cluster&&t.cluster.routing&&t.cluster.routing.allocation&&t.cluster.routing.allocation.enable)||(d.cluster&&d.cluster.routing&&d.cluster.routing.allocation&&d.cluster.routing.allocation.enable)||'all');
+  const rec=((t.cluster&&t.cluster.routing&&t.cluster.routing.allocation&&t.cluster.routing.allocation.node_concurrent_recoveries)||(d.cluster&&d.cluster.routing&&d.cluster.routing.allocation&&d.cluster.routing.allocation.node_concurrent_recoveries)||2);
+  $('opBalance').value=String(bal==='all'?'true':bal==='none'?'false':bal);
+  $('opRecover').value=rec;
+  $('opSettings').textContent=JSON.stringify({routing_enable:bal,concurrent_recoveries:rec},null,2);
+}
+async function opsSetBalance(){
+  const v=$('opBalance').value; // 'true'|'false'|'all'|'primaries'
+  const enable=v==='true'?'all':v==='false'?'none':v;
+  await esAction('PUT','/_cluster/settings',{transient:{"cluster.routing.allocation.enable":enable}},opsReadSettings);
+}
+async function opsSetRecover(){
+  const v=parseInt($('opRecover').value||'2',10);
+  if(!(v>=1&&v<=64)){toast('恢复并发须在 1–64',false);return}
+  await esAction('PUT','/_cluster/settings',{transient:{"cluster.routing.allocation.node_concurrent_recoveries":v}},opsReadSettings);
+}
+function opsDrain(node,on){
+  modalConfirm(on?'节点排水':'恢复分片分配',
+    on?`节点 <code>${esc(node)}</code> 将被加入分片排除名单——新分片不再分配到它，存量分片逐步迁走。<br><br>适用：重启/下线前腾数据。注意迁移流量与磁盘水位。`
+     :`节点 <code>${esc(node)}</code> 将从排除名单移除，恢复接收分片分配。`,
+    on?'开始排水':'恢复',on,
+    async()=>{
+      if(on){await esAction('PUT','/_cluster/settings',{transient:{"cluster.routing.allocation.exclude._name":node}},loadOps)}
+      else{await esAction('PUT','/_cluster/settings',{transient:{"cluster.routing.allocation.exclude._name":""}},loadOps)}
+    });
+}
+
+/* ---------- 品牌定制：logo 上传 ---------- */
+function brandLogoFile(inp){
+  const f=inp.files&&inp.files[0];
+  if(!f)return;
+  if(f.size>256*1024){toast('文件超 256KB 上限',false);inp.value='';return}
+  const rd=new FileReader();
+  rd.onload=async()=>{
+    const data=rd.result.split(',')[1]||'';
+    const {j,s}=await japi('/api/brand/logo',{method:'POST',body:JSON.stringify({name:f.name,data})});
+    if(s===200&&j.ok){
+      toast(j.persisted?'Logo 已上传（持久到 public_dir）':'Logo 已上传（运行时层，重启失效）');
+      // 同步品牌 logo 字段并刷新侧栏
+      $('bdLogo').value=j.logo;
+      await japi('/api/brand',{method:'POST',body:JSON.stringify({logo:j.logo})});
+      applyBrand();
+    }else toast(j.error||'上传失败',false);
+    inp.value='';
+  };
+  rd.readAsDataURL(f);
+}
+async function brandLogoClear(){
+  const {j,s}=await japi('/api/brand/logo',{method:'POST',body:JSON.stringify({clear:true})});
+  if(s===200){
+    toast('已清除上传的 logo');
+    $('bdLogo').value='';
+    await japi('/api/brand',{method:'POST',body:JSON.stringify({logo:''})});
+    applyBrand();
+  }else toast(j.error||'清除失败',false);
+}
+
 async function boot(){
   const {j}=await japi('/api/state');
   $('fVer').textContent='SearchBoard v'+(j.version||'0.1');

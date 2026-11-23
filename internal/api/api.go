@@ -15,6 +15,7 @@
 //	GET  /api/logs/stream  SSE 实时日志流（?file=&lines=）
 //	GET  /api/brand        当前品牌
 //	POST /api/brand        运行时更新品牌（内存态；重启回落到 YAML）
+//	POST /api/brand/logo   logo 上传（base64）与清除；持久到 public_dir 或运行时 Mem 层
 //
 // 安全说明：本服务定位为本地/内网管理台，默认无鉴权；如需暴露公网，
 // 建议前置反向代理加 BasicAuth/IP 白名单（es 密码只存在于本进程内存与
@@ -23,13 +24,18 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/ezscloud/searchboard/framework"
 	"github.com/ezscloud/searchboard/framework/jsonx"
+	"github.com/ezscloud/searchboard/framework/vfs"
 	"github.com/ezscloud/searchboard/internal/es"
 	"github.com/ezscloud/searchboard/internal/logtail"
 )
@@ -87,6 +93,11 @@ type Options struct {
 	Brand   *BrandState
 	Version string
 
+	// PublicDir 品牌资源持久目录（logo 上传写入此处，重启不丢）；空=仅运行时
+	PublicDir string
+	// Stack VFS 分层栈（顶层须为 Mem 层）；PublicDir 为空时 logo 上传写入此处
+	Stack *vfs.Stack
+
 	// HeartbeatInterval SSE 心跳间隔（默认 15s）。心跳注释行写失败即感知
 	// 客户端断开——这是长连接断开感知的可靠机制（不探测连接读方向）。
 	HeartbeatInterval time.Duration
@@ -99,6 +110,8 @@ type API struct {
 	brand     *BrandState
 	version   string
 	heartbeat time.Duration
+	publicDir string
+	stack     *vfs.Stack
 }
 
 // Register 注册全部 API 路由。
@@ -107,7 +120,8 @@ func Register(srv *framework.Server, opts Options) {
 	if hb <= 0 {
 		hb = 15 * time.Second
 	}
-	a := &API{es: opts.ES, tail: opts.Tail, brand: opts.Brand, version: opts.Version, heartbeat: hb}
+	a := &API{es: opts.ES, tail: opts.Tail, brand: opts.Brand, version: opts.Version,
+		heartbeat: hb, publicDir: opts.PublicDir, stack: opts.Stack}
 	g := srv.GET
 	g("/api/state", a.handleState)
 	g("/api/health", a.handleHealth)
@@ -123,6 +137,7 @@ func Register(srv *framework.Server, opts Options) {
 	g("/api/brand", a.handleBrandGet)
 	srv.POST("/api/brand", a.handleBrandSet)
 	srv.POST("/api/brand/reset", a.handleBrandReset)
+	srv.POST("/api/brand/logo", a.handleBrandLogo)
 }
 
 // ---------------------------------------------------------------------------
@@ -346,6 +361,102 @@ func (a *API) handleBrandSet(c *framework.Context) {
 
 func (a *API) handleBrandReset(c *framework.Context) {
 	c.JSON(200, a.brand.Reset())
+}
+
+// ---------------------------------------------------------------------------
+// logo 上传
+
+// logoExtAllow 上传扩展名白名单（前端 tryLogo 探测列表一致）。
+var logoExtAllow = map[string]bool{"png": true, "svg": true, "jpg": true, "webp": true}
+
+// logoMaxBytes 原始字节数上限（256KB）。
+const logoMaxBytes = 256 << 10
+
+// handleBrandLogo logo 上传与清除。
+//
+// 请求体：{"name":"logo.png","data":"<base64>"} 上传；
+//
+//	{"clear":true} 清除已上传 logo（public_dir 或 Mem 层中全部白名单扩展）。
+//
+// 持久化策略：PublicDir 非空 → 写文件（重启不丢）；否则写 VFS Mem 层（运行时）。
+func (a *API) handleBrandLogo(c *framework.Context) {
+	var req struct {
+		Name  string `json:"name"`
+		Data  string `json:"data"`
+		Clear bool   `json:"clear"`
+	}
+	if err := c.BindJSON(&req); err != nil {
+		c.JSON(400, map[string]string{"error": "bad request: " + err.Error()})
+		return
+	}
+
+	if req.Clear {
+		removed := 0
+		if a.publicDir != "" {
+			for ext := range logoExtAllow {
+				if err := os.Remove(filepath.Join(a.publicDir, "logo."+ext)); err == nil {
+					removed++
+				}
+			}
+		}
+		if a.stack != nil {
+			for ext := range logoExtAllow {
+				if err := a.stack.Delete("logo." + ext); err == nil {
+					removed++
+				}
+			}
+		}
+		c.JSON(200, map[string]any{"ok": true, "removed": removed})
+		return
+	}
+
+	// 上传
+	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(req.Name), "."))
+	if !logoExtAllow[ext] {
+		c.JSON(400, map[string]string{"error": "仅支持 png/svg/jpg/webp"})
+		return
+	}
+	data, err := base64.StdEncoding.DecodeString(req.Data)
+	if err != nil {
+		c.JSON(400, map[string]string{"error": "data 非 base64: " + err.Error()})
+		return
+	}
+	if len(data) == 0 || len(data) > logoMaxBytes {
+		c.JSON(400, map[string]string{"error": "文件大小须在 1B–256KB"})
+		return
+	}
+
+	name := "logo." + ext
+	persisted := false
+	if a.publicDir != "" {
+		if err := os.WriteFile(filepath.Join(a.publicDir, name), data, 0o644); err != nil {
+			c.JSON(500, map[string]string{"error": "写入 public_dir 失败: " + err.Error()})
+			return
+		}
+		persisted = true
+	} else {
+		if a.stack == nil {
+			c.JSON(500, map[string]string{"error": "未配置存储层"})
+			return
+		}
+		if err := a.stack.Put(name, data); err != nil {
+			c.JSON(500, map[string]string{"error": "写入运行时层失败: " + err.Error()})
+			return
+		}
+	}
+	// 清理其他扩展的旧 logo（避免多格式并存探测混乱）
+	for e := range logoExtAllow {
+		if e == ext {
+			continue
+		}
+		if a.publicDir != "" {
+			_ = os.Remove(filepath.Join(a.publicDir, "logo."+e))
+		}
+		if a.stack != nil {
+			_ = a.stack.Delete("logo." + e)
+		}
+	}
+	c.JSON(200, map[string]any{"ok": true, "logo": "/public/" + name, "persisted": persisted})
 }
 
 // ctxOf 请求级 context（客户端断开联动取消；单请求总时限由 Client.Timeout 兜底）。

@@ -32,11 +32,13 @@ go build -o bin/framework-demo ./cmd/framework-demo
 |---|---|
 | 总览 | 集群健康/节点数/索引数/文档总数/存储用量/分片数卡片；集群信息表；节点资源（堆/磁盘/CPU 条形图） |
 | 节点 | `_nodes/stats` 明细：JVM 堆、磁盘、CPU、文档量、写入/查询速率 |
-| 索引 | `_cat/indices`：健康徽章、状态、UUID、主副分片、文档数、存储、创建时间，支持过滤 |
+| 索引 | `_cat/indices`：健康徽章、状态、UUID、主副分片、文档数、存储、创建时间，支持过滤；**行内操作：删除（确认弹窗）/ 关闭 / 打开** |
 | 分片 | `_cat/shards`：主/副、状态筛选（STARTED/INITIALIZING/RELOCATING/UNASSIGNED）、节点分布 |
+| **别名** | `_cat/aliases`：列表/过滤/移除/新增（弹窗表单），指向索引与写别名标记 |
+| **集群运维** | 分片均衡开关、并发恢复数（transient 设置下发）；**节点排水/恢复分配**（allocation exclude，状态实时反映） |
 | REST 控制台 | 任意 REST 透传（method/path/JSON body），响应 pretty 打印 + ES 状态码/耗时/大小 |
 | 节点日志 | SSE 实时流：尾部回放 + 实时追加 + 滚动轮转自动重开 + ERROR/WARN 着色 |
-| 品牌定制 | 运行时改站点名/标语/logo；`public_dir/logo.png` 放入即生效（VFS 覆盖层） |
+| 品牌定制 | 运行时改站点名/标语/logo；**界面直接上传 logo**（≤256KB，png/svg/jpg/webp；持久到 public_dir 或运行时 VFS 层）+ 清除 |
 
 ES 不可达时前端降级提示（侧边栏红灯 + 总览横幅），10s 轮询自动恢复。
 
@@ -78,6 +80,7 @@ public_dir: "public"       # 外部覆盖目录（logo 等静态资源覆盖 emb
 | `GET /api/logs` | 日志文件列表（名称/大小/mtime，按修改时间倒序） |
 | `GET /api/logs/stream?file=&lines=` | SSE 日志流（事件：`line`/`ready`/`rotate`/`error`/`end`） |
 | `GET/POST /api/brand`、`POST /api/brand/reset` | 品牌读取/更新/恢复 YAML 默认 |
+| `POST /api/brand/logo` | logo 上传（base64，白名单 png/svg/jpg/webp，≤256KB，持久 public_dir 或运行时 VFS 层）与清除 |
 | `GET /public/*` | 覆盖层静态资源（品牌 logo） |
 | `GET /*` | SPA（embed 基座 + 覆盖层优先，index.html fallback） |
 
@@ -104,6 +107,8 @@ public_dir: "public"       # 外部覆盖目录（logo 等静态资源覆盖 emb
 - 轮询 stat 文件大小（跨平台一致，Windows 无 inotify）；size 减小/文件替换 → 轮转重开从头读；
 - 只下发完整行（残行缓冲），单批 ≤2000 行防突发撑爆；
 - SSE 心跳（15s 注释行）：写失败即感知客户端断开——**不做连接读方向探测**（会与下一请求解析竞争，详见 framework README 踩坑 6）。
+
+危险操作防护：索引删除/别名移除/节点排水均经确认弹窗（危险操作红色按钮），全部经 `/api/es/rest` 透传（无隐藏通道，可审计）。
 
 ## 安全
 
