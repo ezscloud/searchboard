@@ -57,7 +57,7 @@ gh repo view / gh browse            # 仓库/网页直达
 
 ```bash
 # 1) 构建（产物只进 bin/，禁止输出到根目录——会与源码目录同名冲突）
-go build -o bin/searchboard     ./searchboard
+go build -o bin/searchboard     .
 go build -o bin/framework-demo  ./cmd/framework-demo
 
 # 2) 静态检查
@@ -103,8 +103,11 @@ git add -A && git commit -m "..." && git push
 ## 7. 目录速览
 
 ```
-framework/          自研 Web 框架（HTTP1/2/WS/RPC/QUIC + 18 扩展 + VFS）
-searchboard/        ES/OpenSearch 监控管理台（SSE 节点日志实时流）
+framework/          自研 Web 框架（HTTP1/2/WS/RPC/QUIC + 18 扩展 + VFS + keystore）
+internal/           管理台内部包（config/es/logtail/api）
+web/                管理台前端（embed 基座，单文件 index.html）
+main.go, embed.go   管理台入口（module 根即 main 包）
+searchboard.yml     管理台配置（YAML 唯一配置形态）
 cmd/framework-demo/ 框架全特性演示
 bin/                构建产物（.gitignore）
 .temp/              agent 临时文件（.gitignore）

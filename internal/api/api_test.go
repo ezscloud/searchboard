@@ -12,8 +12,8 @@ import (
 
 	"github.com/ezscloud/searchboard/framework"
 	"github.com/ezscloud/searchboard/framework/transport"
-	"github.com/ezscloud/searchboard/searchboard/internal/es"
-	"github.com/ezscloud/searchboard/searchboard/internal/logtail"
+	"github.com/ezscloud/searchboard/internal/es"
+	"github.com/ezscloud/searchboard/internal/logtail"
 )
 
 // startMockES 启动假 ES 源（独立端口），返回 base URL。

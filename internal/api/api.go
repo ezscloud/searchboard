@@ -30,8 +30,8 @@ import (
 
 	"github.com/ezscloud/searchboard/framework"
 	"github.com/ezscloud/searchboard/framework/jsonx"
-	"github.com/ezscloud/searchboard/searchboard/internal/es"
-	"github.com/ezscloud/searchboard/searchboard/internal/logtail"
+	"github.com/ezscloud/searchboard/internal/es"
+	"github.com/ezscloud/searchboard/internal/logtail"
 )
 
 // Brand 品牌定制信息。

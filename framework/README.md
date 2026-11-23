@@ -16,7 +16,7 @@
 | **VFS 分层渲染** | 前端资源多层覆盖：embed 基座 → 磁盘目录覆盖层 → 内存层（运行时写/删）；品牌 logo 定制即用此机制 | `framework/vfs/` |
 | **静态服务** | VFS 驱动的静态资源：MIME/强 ETag+304/Range/index/SPA fallback | `framework/ext/static/` |
 | JSON | 全框架统一 sonic v1.15.5（`framework/jsonx` 收敛依赖） | `framework/jsonx/` |
-| 扩展中间件 | etag/csrf/secure/gzip/i18n/session/basicauth/keyauth/jwt/limiter(BBR)/loadbalance/cache/reverseproxy/monitor(Prometheus)/pprof/trace/autotls/registry 共 18 项 | `framework/ext/` |
+| 扩展中间件 | etag/csrf/secure/gzip/i18n/session/basicauth/keyauth/jwt/limiter(BBR)/loadbalance/cache/reverseproxy/monitor(Prometheus)/pprof/trace/autotls/registry + keystore 共 19 项 | `framework/ext/` |
 
 ## 与 Hertz 的对比（诚实口径）
 
@@ -58,10 +58,11 @@
 | `monitor` | Prometheus 文本格式（计数/仪表/直方图 + /metrics） | hertz monitor-prometheus |
 | `pprof` | 运行时剖析端点（net/http/pprof 桥接 + 指定名 profile） | hertz pprof |
 | `trace` | W3C traceparent 链路追踪 + Exporter 接口 | hertz tracer/obs-opentelemetry |
-| `autotls` | 真 ACME 证书（x/crypto/acme/autocert：HTTP-01 挑战 + DirCache）+ 到期续签 + 离线自签回退 | hertz autotls |
+| `autotls` | 真 ACME 证书（x/crypto/acme/autocert：HTTP-01 挑战 + 缓存可插拔）+ 到期续签 + 离线自签回退 | hertz autotls |
+| `keystore` | 密钥/证书存储抽象：命名条目（证书链/私钥/任意数据/元数据），MemStore + FileStore（原子写 0600），AutocertCache 适配器直插 autotls，穿越防护 | 自研（Java KeyStore 思路的 Go 轻量版） |
 | `registry` | 注册发现接口 + 内存实现（TTL 剔除 + Watch） | hertz registry(nacos/etcd/...) |
 
-## 扩展中间件（18 项，见上表）+ 三个核心包
+## 扩展中间件（19 项，见上表）+ 三个核心包
 
 - `framework/vfs`：分层虚拟文件系统（Embed/Dir/Mem 层 + Stack 覆盖查找），searchboard 用它实现"embed 前端基座 + 外部目录覆盖 logo"；
 - `framework/ext/static`：静态服务（MIME/ETag/Range/SPA），searchboard 的页面与 /public/* 都走它；
@@ -255,7 +256,7 @@ proxy := reverseproxy.Handler(reverseproxy.Config{Targets: []loadbalance.Endpoin
   排空窗口外仍强制断开（x/net/http2 无公开优雅 API，同 Go 标准库
   golang/go#22091）。Hijack 在 h2/h3 链路不可用（多路复用下的连接接管语义
   冲突，net/http 与 Hertz 同样不支持；WS 自动走 h1 ALPN 路径）。
-- autotls 内置真 ACME（autocert：HTTP-01 + DirCache + 自动续期）；无公网入口
+- autotls 内置真 ACME（autocert：HTTP-01 + 缓存可插拔 + 自动续期）；无公网入口
   时自动回退自签。
 - SSE 等长响应断开感知依赖心跳写失败（见踩坑 6）；`Context.Done()` 在会话
   收尾时关闭。

@@ -21,10 +21,10 @@ import (
 	"github.com/ezscloud/searchboard/framework/ext/gzip"
 	"github.com/ezscloud/searchboard/framework/ext/static"
 	"github.com/ezscloud/searchboard/framework/vfs"
-	"github.com/ezscloud/searchboard/searchboard/internal/api"
-	"github.com/ezscloud/searchboard/searchboard/internal/config"
-	"github.com/ezscloud/searchboard/searchboard/internal/es"
-	"github.com/ezscloud/searchboard/searchboard/internal/logtail"
+	"github.com/ezscloud/searchboard/internal/api"
+	"github.com/ezscloud/searchboard/internal/config"
+	"github.com/ezscloud/searchboard/internal/es"
+	"github.com/ezscloud/searchboard/internal/logtail"
 )
 
 // version 管理台版本。
