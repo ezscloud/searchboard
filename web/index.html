@@ -7,112 +7,177 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2316222e'/%3E%3Ccircle cx='28' cy='28' r='13' fill='none' stroke='%233ba3f0' stroke-width='5'/%3E%3Cline x1='38' y1='38' x2='50' y2='50' stroke='%233ba3f0' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
 :root{
-  --bg:#0f1419; --panel:#161c23; --panel2:#1c232c; --border:#28313c;
-  --text:#dbe2ea; --muted:#8a97a5; --accent:#3ba3f0; --accent2:#2a7ec0;
-  --green:#3fbf6f; --yellow:#e5b45c; --red:#e05d5d; --mono:'Cascadia Code',Consolas,Menlo,monospace;
+  --bg:#0a0e14; --bg2:#0d131b; --panel:#121821; --panel2:#182130; --panel3:#1e2937;
+  --border:#243044; --border2:#2f3d52;
+  --text:#e6edf5; --text2:#c5d0dd; --muted:#7e8b9b;
+  --accent:#4aa3f0; --accent2:#2e7cd2; --accent-dim:rgba(74,163,240,.13);
+  --green:#34d27b; --yellow:#e8b64c; --red:#ef5f5f; --cyan:#3fc8dd; --violet:#9d7bf4;
+  --mono:'Cascadia Code','JetBrains Mono',Consolas,Menlo,monospace;
+  --shadow:0 4px 20px rgba(0,0,0,.4); --shadow2:0 2px 10px rgba(0,0,0,.3);
+  --r:12px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,'Segoe UI','Microsoft YaHei',sans-serif;display:flex;height:100vh;overflow:hidden}
-aside{width:230px;min-width:230px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column}
-.brand{padding:16px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;min-height:64px}
-.brand img{width:34px;height:34px;border-radius:8px;object-fit:contain;background:#0c1015;padding:2px}
+html,body{height:100%}
+body{background:linear-gradient(160deg,var(--bg) 0%,var(--bg2) 100%);color:var(--text);font:14px/1.55 -apple-system,'Segoe UI','Microsoft YaHei',sans-serif;display:flex;height:100vh;overflow:hidden}
+
+/* ---------- 侧边栏 ---------- */
+aside{width:240px;min-width:240px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column}
+.brand{padding:18px 16px 14px;display:flex;align-items:center;gap:11px}
+.brand .blogo{width:38px;height:38px;border-radius:10px;object-fit:contain;background:var(--panel2);padding:5px;border:1px solid var(--border2)}
 .brand .bt{flex:1;min-width:0}
-.brand .bn{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.brand .bs{color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-nav{padding:8px;flex:1}
-nav a{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:8px;color:var(--muted);text-decoration:none;margin-bottom:2px;cursor:pointer;font-size:13.5px}
+.brand .bn{font-weight:700;font-size:15px;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand .bs{color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+nav{padding:4px 10px 10px;flex:1;overflow-y:auto}
+.navgroup{margin:14px 8px 5px;color:var(--muted);font-size:10.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;opacity:.75}
+.navgroup:first-child{margin-top:6px}
+nav a{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:9px;color:var(--text2);text-decoration:none;margin-bottom:1px;cursor:pointer;font-size:13.5px;position:relative;transition:all .15s}
 nav a:hover{background:var(--panel2);color:var(--text)}
-nav a.on{background:rgba(59,163,240,.13);color:var(--accent);font-weight:600}
-nav a .ic{width:16px;text-align:center}
-.foot{padding:10px 14px;border-top:1px solid var(--border);color:var(--muted);font-size:11px}
+nav a.on{background:var(--accent-dim);color:var(--accent);font-weight:600}
+nav a.on::before{content:'';position:absolute;left:0;top:22%;bottom:22%;width:3px;border-radius:2px;background:var(--accent)}
+nav a .ic{width:18px;text-align:center;font-size:13px;opacity:.85}
+.foot{padding:12px 16px;border-top:1px solid var(--border);color:var(--muted);font-size:11px;line-height:1.8}
+.foot .esdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:0}
+
+/* ---------- 主区 ---------- */
 main{flex:1;display:flex;flex-direction:column;min-width:0}
-header{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;background:var(--panel)}
-header h1{font-size:16px;font-weight:600}
+header{padding:13px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;background:var(--panel);position:relative;z-index:5}
+header h1{font-size:16.5px;font-weight:700;letter-spacing:.3px}
 header .sp{flex:1}
-section.page{display:none;flex:1;overflow:auto;padding:18px 20px}
+.cbar{display:flex;align-items:center;gap:10px}
+.cbar .chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--border2);padding:4px 11px;border-radius:20px;font-size:12px;color:var(--text2);font-variant-numeric:tabular-nums}
+.cbar .chip b{color:var(--text);font-weight:600}
+section.page{display:none;flex:1;overflow:auto;padding:20px 22px}
 section.page.on{display:block}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px}
-.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
-.card .cv{font-size:22px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
+
+/* ---------- 磁贴 ---------- */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px;margin-bottom:16px}
+.tile{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:15px 16px 13px;position:relative;overflow:hidden;transition:border-color .2s,transform .15s}
+.tile:hover{border-color:var(--border2);transform:translateY(-1px)}
+.tile::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),transparent)}
+.tile.t-green::before{background:linear-gradient(90deg,var(--green),transparent)}
+.tile.t-yellow::before{background:linear-gradient(90deg,var(--yellow),transparent)}
+.tile.t-red::before{background:linear-gradient(90deg,var(--red),transparent)}
+.tile.t-cyan::before{background:linear-gradient(90deg,var(--cyan),transparent)}
+.tile.t-violet::before{background:linear-gradient(90deg,var(--violet),transparent)}
+.tile .tl{color:var(--muted);font-size:11.5px;letter-spacing:.4px}
+.tile .tv{font-size:24px;font-weight:750;margin:4px 0 1px;font-variant-numeric:tabular-nums;letter-spacing:.2px}
+.tile .tv .dot{width:10px;height:10px}
+.tile .ts{color:var(--muted);font-size:11px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
+.card .cv{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
 .card .cl{color:var(--muted);font-size:12px}
-.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:1px}
-.dg{background:var(--green)} .dy{background:var(--yellow)} .dr{background:var(--red)} .dx{background:#555}
-.pill{display:inline-block;padding:1px 8px;border-radius:9px;font-size:11px;font-weight:600}
-.pg{background:rgba(63,191,111,.15);color:var(--green)} .py{background:rgba(229,180,92,.15);color:var(--yellow)}
-.pr{background:rgba(224,93,93,.15);color:var(--red)} .px{background:rgba(255,255,255,.06);color:var(--muted)}
-.tbl{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden}
-.tbl th{background:var(--panel2);color:var(--muted);text-align:left;padding:9px 12px;font-weight:600;font-size:12px;white-space:nowrap}
-.tbl td{padding:8px 12px;border-top:1px solid var(--border);font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums}
-.tbl tr:hover td{background:rgba(59,163,240,.05)}
-.bar{height:6px;border-radius:3px;background:#242d38;min-width:70px;overflow:hidden}
-.bar i{display:block;height:100%;border-radius:3px;background:var(--accent)}
-.bar i.w{background:var(--yellow)} .bar i.c{background:var(--red)}
-.btn{background:var(--accent2);color:#fff;border:none;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:13px}
-.btn:hover{background:var(--accent)} .btn:disabled{opacity:.45;cursor:not-allowed}
-.btn2{background:var(--panel2);color:var(--text);border:1px solid var(--border)}
-.btn2:hover{border-color:var(--accent)} .btn2.on{border-color:var(--accent);color:var(--accent)}
-.btn.stop{background:#8a3030} .btn.stop:hover{background:#a53a3a}
-.inp,.sel,textarea{background:#0c1015;color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;outline:none}
-.inp:focus,textarea:focus{border-color:var(--accent)}
-select.sel{padding:6px 8px}
-textarea{font-family:var(--mono);font-size:12.5px;resize:vertical}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+
+/* ---------- 徽章 ---------- */
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:1px;box-shadow:0 0 8px currentColor}
+.dg{background:var(--green)} .dy{background:var(--yellow)} .dr{background:var(--red)} .dx{background:#5a6675}
+.pill{display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600;letter-spacing:.3px}
+.pg{background:rgba(52,210,123,.14);color:var(--green)} .py{background:rgba(232,182,76,.14);color:var(--yellow)}
+.pr{background:rgba(239,95,95,.14);color:var(--red)} .px{background:rgba(255,255,255,.07);color:var(--muted)}
+
+/* ---------- 表格 ---------- */
+.tblwrap{border:1px solid var(--border);border-radius:var(--r);overflow:auto;background:var(--panel);max-height:calc(100vh - 170px)}
+.tbl{width:100%;border-collapse:collapse;border:1px solid var(--border);border-radius:var(--r);background:var(--panel)}
+.tbl th{background:var(--panel2);color:var(--muted);text-align:left;padding:10px 14px;font-weight:600;font-size:11.5px;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap;position:sticky;top:0;z-index:2;box-shadow:0 1px 0 var(--border)}
+.tbl td{padding:9px 14px;border-top:1px solid var(--border);font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums;max-width:300px;overflow:hidden;text-overflow:ellipsis}
+.tbl tbody tr{transition:background .12s}
+.tbl tr:hover td{background:var(--accent-dim)}
+.tbl td .mono{font-family:var(--mono);font-size:12px}
+
+/* ---------- 资源条 ---------- */
+.bar{display:flex;align-items:center;gap:8px}
+.bar .track{flex:1;height:7px;border-radius:4px;background:var(--panel3);overflow:hidden;min-width:60px}
+.bar .fill{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--accent2),var(--accent));transition:width .4s}
+.bar .fill.w{background:linear-gradient(90deg,#a17c2e,var(--yellow))}
+.bar .fill.c{background:linear-gradient(90deg,#a13434,var(--red))}
+.bar .val{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:34px;text-align:right}
+
+/* ---------- 控件 ---------- */
+.btn{background:linear-gradient(180deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:9px;padding:7px 16px;cursor:pointer;font-size:13px;font-weight:600;box-shadow:var(--shadow2);transition:filter .15s}
+.btn:hover{filter:brightness(1.15)} .btn:disabled{opacity:.4;cursor:not-allowed;filter:none}
+.btn2{background:var(--panel2);color:var(--text2);border:1px solid var(--border2);box-shadow:none}
+.btn2:hover{border-color:var(--accent);color:var(--accent);filter:none}
+.btn.stop{background:linear-gradient(180deg,#c04848,#8f2f2f)}
+.inp,.sel,textarea{background:var(--panel3);color:var(--text);border:1px solid var(--border2);border-radius:9px;padding:7px 11px;font-size:13px;outline:none;transition:border-color .15s}
+.inp:focus,.sel:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+select.sel{padding:6px 9px}
+textarea{font-family:var(--mono);font-size:12.5px;resize:vertical;line-height:1.6}
 .row{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
 .row .sp{flex:1}
 .hint{color:var(--muted);font-size:12px}
 .err{color:var(--red)}
-pre.code{background:#0c1015;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:var(--mono);font-size:12.5px;overflow:auto;white-space:pre;max-height:60vh}
-.logbox{background:#0a0e13;border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-family:var(--mono);font-size:12px;height:calc(100vh - 230px);overflow:auto;white-space:pre-wrap;word-break:break-all}
-.logbox div{padding:1px 0}
-.kv{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:12px}
-.kv h3{font-size:13px;color:var(--muted);margin-bottom:8px;font-weight:600}
+pre.code{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;font-family:var(--mono);font-size:12.5px;overflow:auto;white-space:pre;max-height:60vh;line-height:1.6}
+.logbox{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;font-family:var(--mono);font-size:12px;height:calc(100vh - 232px);overflow:auto;white-space:pre-wrap;word-break:break-all}
+.logbox div{padding:1.5px 0}
+.kv{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;margin-bottom:14px;overflow-x:auto}
+.kv h3{font-size:12px;color:var(--muted);margin-bottom:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
 .kv table{width:100%;border-collapse:collapse}
-.kv td{padding:4px 8px;font-size:13px}
-.kv td:first-child{color:var(--muted);width:180px}
-.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--border);padding:9px 18px;border-radius:9px;font-size:13px;display:none;box-shadow:0 4px 18px rgba(0,0,0,.4);z-index:99}
+.kv td{padding:5px 9px;font-size:13px}
+.kv td:first-child{color:var(--muted);width:190px}
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:var(--panel3);border:1px solid var(--border2);padding:10px 20px;border-radius:10px;font-size:13px;display:none;box-shadow:var(--shadow);z-index:99}
 .muted{color:var(--muted)}
-.loading{color:var(--muted);padding:30px;text-align:center}
-.mini{background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;margin:0 2px}
+.loading{color:var(--muted);padding:36px;text-align:center}
+.mini{background:var(--panel2);border:1px solid var(--border2);color:var(--text2);border-radius:7px;padding:3px 10px;font-size:11.5px;cursor:pointer;margin:0 2px;transition:all .15s}
 .mini:hover{border-color:var(--accent);color:var(--accent)}
 .mini.danger:hover{border-color:var(--red);color:var(--red)}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:50}
+.modal{position:fixed;inset:0;background:rgba(4,7,12,.6);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:50}
 .modal.on{display:flex}
-.modal .card2{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:22px 26px;width:min(480px,90vw)}
-.modal h3{font-size:15px;margin-bottom:14px}
-.modal .mrow{margin-top:16px;display:flex;gap:8px;justify-content:flex-end}
+.modal .card2{background:var(--panel);border:1px solid var(--border2);border-radius:14px;padding:24px 28px;width:min(500px,92vw);box-shadow:var(--shadow)}
+.modal h3{font-size:15.5px;margin-bottom:14px;font-weight:700}
+.modal .mrow{margin-top:18px;display:flex;gap:8px;justify-content:flex-end}
 .logo-edit{display:flex;align-items:center;gap:14px;margin-bottom:14px}
-.logo-edit img{width:52px;height:52px;border-radius:10px;object-fit:contain;background:#0c1015;border:1px solid var(--border);padding:3px}
+.logo-edit img{width:52px;height:52px;border-radius:12px;object-fit:contain;background:var(--panel3);border:1px solid var(--border2);padding:4px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:var(--panel3);border-radius:5px;border:2px solid var(--bg2)}
+::-webkit-scrollbar-thumb:hover{background:var(--border2)}
+::-webkit-scrollbar-track{background:transparent}
 </style>
 </head>
 <body>
 <aside>
   <div class="brand">
-    <img id="bLogo" alt="logo">
+    <img id="bLogo" class="blogo" alt="logo">
     <div class="bt"><div class="bn" id="bName">SearchBoard</div><div class="bs" id="bSlogan"></div></div>
   </div>
   <nav id="nav">
+    <div class="navgroup">集群监控</div>
     <a data-p="overview" class="on"><span class="ic">◱</span>总览</a>
     <a data-p="nodes"><span class="ic">☰</span>节点</a>
-    <a data-p="indices"><span class="ic">▤</span>索引</a>
     <a data-p="shards"><span class="ic">▦</span>分片</a>
+    <div class="navgroup">数据管理</div>
+    <a data-p="indices"><span class="ic">▤</span>索引</a>
     <a data-p="aliases"><span class="ic">◫</span>别名</a>
+    <a data-p="snapshots"><span class="ic">⛁</span>快照备份</a>
+    <a data-p="search"><span class="ic">◎</span>查询控制台</a>
+    <div class="navgroup">运维工具</div>
     <a data-p="ops"><span class="ic">⚙</span>集群运维</a>
     <a data-p="rest"><span class="ic">⌘</span>REST 控制台</a>
     <a data-p="logs"><span class="ic">≡</span>节点日志</a>
+    <div class="navgroup">系统</div>
     <a data-p="brand"><span class="ic">✎</span>品牌定制</a>
   </nav>
   <div class="foot"><div id="fEs" class="muted">检查 ES 连接…</div><div id="fVer" class="muted"></div></div>
 </aside>
 <main>
-  <header><h1 id="pgTitle">总览</h1><div class="sp"></div><div id="hdrExtra" class="hint"></div></header>
+  <header>
+    <h1 id="pgTitle">总览</h1>
+    <div class="sp"></div>
+    <div class="cbar">
+      <span class="chip" id="cbCluster"><span class="dot dx"></span>未连接</span>
+      <span class="chip" id="cbNodes">节点 —</span>
+      <span class="chip" id="cbVer">—</span>
+      <span class="hint" id="hdrExtra"></span>
+    </div>
+  </header>
 
   <section class="page on" id="pg-overview">
-    <div class="cards">
-      <div class="card"><div class="cl">集群健康</div><div class="cv" id="ovHealth">—</div></div>
-      <div class="card"><div class="cl">节点数</div><div class="cv" id="ovNodes">—</div></div>
-      <div class="card"><div class="cl">索引数</div><div class="cv" id="ovIndices">—</div></div>
-      <div class="card"><div class="cl">文档总数</div><div class="cv" id="ovDocs">—</div></div>
-      <div class="card"><div class="cl">存储用量</div><div class="cv" id="ovStore">—</div></div>
-      <div class="card"><div class="cl">活跃分片 / 总分片</div><div class="cv" id="ovShards">—</div></div>
+    <div class="tiles">
+      <div class="tile t-dynamic" id="tileHealth"><div class="tl">集群健康</div><div class="tv" id="ovHealth">—</div><div class="ts" id="ovHealthSub">集群状态</div></div>
+      <div class="tile"><div class="tl">节点数</div><div class="tv" id="ovNodes">—</div><div class="ts" id="ovNodesSub">数据节点/总数</div></div>
+      <div class="tile t-cyan"><div class="tl">索引数</div><div class="tv" id="ovIndices">—</div><div class="ts">集群索引</div></div>
+      <div class="tile t-violet"><div class="tl">文档总数</div><div class="tv" id="ovDocs">—</div><div class="ts" id="ovDocsSub">全集群文档</div></div>
+      <div class="tile t-yellow"><div class="tl">存储用量</div><div class="tv" id="ovStore">—</div><div class="ts">主分片存储</div></div>
+      <div class="tile"><div class="tl">活跃分片 / 总分片</div><div class="tv" id="ovShards">—</div><div class="ts" id="ovShardsSub">分片分配</div></div>
     </div>
     <div class="kv"><h3>集群信息</h3><table id="ovCluster"></table></div>
     <div class="kv"><h3>节点资源（堆 / 磁盘 / CPU）</h3><table id="ovRes"></table></div>
@@ -134,6 +199,55 @@ pre.code{background:#0c1015;border:1px solid var(--border);border-radius:10px;pa
       <button class="btn btn2" onclick="aliasModalShow()">新增别名</button></div>
     <table class="tbl" id="tAliases"></table>
     <div class="hint" style="margin-top:10px">别名（alias）是索引的软链接：写入路由/读入统一入口，重建索引时可无感切换。操作直接影响集群，谨慎执行。</div>
+  </section>
+
+  <section class="page" id="pg-snapshots">
+    <div class="kv"><h3>快照仓库（snapshot repository）</h3>
+      <div class="row">
+        <select class="sel" id="snRepo" style="min-width:200px"><option value="">加载仓库…</option></select>
+        <div class="sp"></div>
+        <button class="btn" onclick="snapRefresh()">刷新</button>
+        <button class="btn btn2" onclick="snapRepoModal()">注册仓库</button>
+        <button class="btn btn2" id="snRepoDel" onclick="snapRepoRemove()">移除仓库</button>
+      </div>
+      <div class="hint">注册 <b>fs</b> 类型仓库需要集群 elasticsearch.yml 先配置 path.repo。生产建议用 S3/HDFS 插件类型，此处注册界面仅覆盖 fs。</div>
+    </div>
+    <div class="kv"><h3>快照列表</h3>
+      <div class="row">
+        <input class="inp" id="snName" placeholder="快照名（如 snapshot-20261123）" style="width:250px">
+        <input class="inp" id="snIndices" placeholder="索引（逗号分隔，空=全部）" style="width:250px">
+        <button class="btn" onclick="snapTake()">拍快照</button>
+        <div class="sp"></div><span class="hint" id="snStat"></span>
+      </div>
+      <table class="tbl" id="tSnapshots"></table>
+    </div>
+  </section>
+
+  <section class="page" id="pg-search">
+    <div class="row">
+      <select class="sel" id="qIndex" style="min-width:220px"><option value="">索引：全部</option></select>
+      <button class="btn btn2" onclick="qLoadIndices()">刷新索引列表</button>
+      <div class="sp"></div>
+      <span class="hint" id="qStat"></span>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <textarea id="qBody" rows="9" spellcheck="false" style="flex:1;font-family:var(--mono);font-size:13px">{
+  "size": 10,
+  "query": { "match_all": {} }
+}</textarea>
+      <div style="width:150px;margin-left:10px;display:flex;flex-direction:column;gap:8px">
+        <button class="btn" onclick="qExec()">执行查询</button>
+        <button class="btn btn2" onclick="qPreset('match')">match 模板</button>
+        <button class="btn btn2" onclick="qPreset('agg')">聚合模板</button>
+        <button class="btn btn2" onclick="qPreset('reset')">重置</button>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <span class="hint">POST /{索引}/_search</span>
+      <div class="sp"></div>
+      <label class="hint"><input type="checkbox" id="qRaw" onchange="qRender()"> 原始 JSON 视图</label>
+    </div>
+    <div id="qResult"></div>
   </section>
 
   <section class="page" id="pg-ops">
@@ -233,7 +347,7 @@ function fmtN(n){if(n==null||isNaN(n))return '—';return Number(n).toLocaleStri
 function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function dotOf(s){return s==='green'?'dg':s==='yellow'?'dy':s==='red'?'dr':'dx'}
 function pillOf(s){const c=s==='green'?'pg':s==='yellow'?'py':s==='red'?'pr':'px';return `<span class="pill ${c}">${esc(s||'—')}</span>`}
-function bar(p){const w=Math.max(0,Math.min(100,p));const c=w>=90?'c':w>=75?'w':'';return `<div class="bar"><i class="${c}" style="width:${w}%"></i></div><span class="hint"> ${w.toFixed(0)}%</span>`}
+function bar(p){const w=Math.max(0,Math.min(100,p==null?0:p));const c=w>=90?'c':w>=75?'w':'';return `<span class="bar"><span class="track"><span class="fill ${c}" style="width:${w.toFixed(0)}%"></span></span><span class="val">${w.toFixed(0)}%</span></span>`}
 
 /* ---------- 品牌 ---------- */
 const FALLBACK_LOGO='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16222e"/><circle cx="28" cy="28" r="13" fill="none" stroke="#3ba3f0" stroke-width="5"/><line x1="38" y1="38" x2="50" y2="50" stroke="#3ba3f0" stroke-width="6" stroke-linecap="round"/></svg>');
@@ -260,9 +374,9 @@ async function brandReset(){
 }
 
 /* ---------- 路由 ---------- */
-const TITLES={overview:'总览',nodes:'节点',indices:'索引',shards:'分片',aliases:'别名',ops:'集群运维',rest:'REST 控制台',logs:'节点日志',brand:'品牌定制'};
+const TITLES={overview:'总览',nodes:'节点',indices:'索引',shards:'分片',aliases:'别名',snapshots:'快照备份',search:'查询控制台',ops:'集群运维',rest:'REST 控制台',logs:'节点日志',brand:'品牌定制'};
 // 惰性引用（loadNodes 等为 let 可重赋值变量，调用时取当前值，避免 TDZ）
-const LOADERS={overview:loadOverview,nodes:()=>loadNodes(),indices:()=>loadIndices(),shards:()=>loadShards(),aliases:()=>loadAliases(),ops:()=>loadOps()};
+const LOADERS={overview:loadOverview,nodes:()=>loadNodes(),indices:()=>loadIndices(),shards:()=>loadShards(),aliases:()=>loadAliases(),snapshots:()=>snapRefresh(),search:()=>qLoadIndices(),ops:()=>loadOps()};
 function nav(p){
   document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('on',a.dataset.p===p));
   document.querySelectorAll('.page').forEach(s=>s.classList.toggle('on',s.id==='pg-'+p));
@@ -275,14 +389,25 @@ window.addEventListener('hashchange',()=>nav(location.hash.slice(1)||'overview')
 
 /* ---------- 总览 ---------- */
 function hdrExtra(s){$('hdrExtra').textContent=s}
+let CLUSTER_INFO=null; // {name,ver,nodes,dataNodes,status,shards,unassigned}
+function renderClusterBar(){
+  const c=CLUSTER_INFO;
+  if(!c||!ES_OK){$('cbCluster').innerHTML='<span class="dot dx"></span>未连接';$('cbNodes').innerHTML='节点 —';$('cbVer').textContent='—';return}
+  const st=c.status||'';
+  $('cbCluster').innerHTML=`<span class="dot ${dotOf(st)}"></span>${esc(c.name||'cluster')}`;
+  $('cbNodes').innerHTML=`节点 <b>${c.dataNodes!=null?c.dataNodes+' / ':''}${c.nodes??'—'}</b>`;
+  $('cbVer').textContent=c.ver?('ES '+c.ver):'';
+}
 async function loadOverview(){
   const {j:h,s}=await japi('/api/health');
-  if(!h.ok){$('ovHealth').innerHTML='<span class="err">ES 不可达</span>';setES(false,h.error||'连接失败');return}
+  if(!h.ok){$('ovHealth').innerHTML='<span class="err">ES 不可达</span>';$('ovHealthSub').textContent=h.error||'连接失败';setES(false);return}
   setES(true);
   const hh=h.health||{};
   const st=hh.status||'—';
   $('ovHealth').innerHTML=`<span class="dot ${dotOf(st)}"></span>${esc(st)}`;
-  // 索引/文档/存储：优先 _cluster/stats，缺失时用 _cat/indices 聚合兜底
+  $('ovHealthSub').textContent=st==='green'?'所有分片已分配':st==='yellow'?'副本分片未分配':'主分片未分配';
+  $('tileHealth').className='tile t-'+(st==='green'?'green':st==='yellow'?'yellow':'red');
+  // 索引/文档/存储：优先 _cluster/stats，缺失时用 _cat/indices 聚合兑底
   const {j:cs}=await japi('/api/es/stats');
   const {j:idx}=await japi('/api/es/indices');
   const idxArr=Array.isArray(idx)?idx:[];
@@ -291,13 +416,20 @@ async function loadOverview(){
   if(docs==null&&idxArr.length){docs=idxArr.reduce((a,r)=>a+(Number(r['docs.count'])||0),0)}
   if(store==null&&idxArr.length){store=idxArr.reduce((a,r)=>a+(Number(r['docs.store.size']||r['store.size'])||0),0)}
   const {j:rt}=await japi('/api/es/root');
+  const ver=(rt.version&&rt.version.number)||(cs.nodes&&cs.nodes.versions||[]).join(', ')||'—';
   $('ovNodes').textContent=hh.number_of_nodes??'—';
+  $('ovNodesSub').textContent=(hh.number_of_data_nodes??'—')+' 数据节点 / '+(hh.number_of_nodes??'—')+' 总数';
   $('ovIndices').textContent=idxArr.length||'—';
   $('ovDocs').textContent=fmtN(docs);
   $('ovStore').textContent=fmtB(store);
-  $('ovShards').textContent=(hh.active_shards??'—')+' / '+(hh.active_shards??'—');
-  if(cs.indices&&cs.indices.shards) $('ovShards').textContent=(cs.indices.shards.total??'—')+' / '+(hh.active_shards??'—');
-  const ver=(rt.version&&rt.version.number)||(cs.nodes&&cs.nodes.versions||[]).join(', ')||'—';
+  const shardsActive=hh.active_shards??null;
+  const unassigned=hh.unassigned_shards??0;
+  let shardsTotal=shardsActive;
+  if(cs.indices&&cs.indices.shards&&cs.indices.shards.total!=null)shardsTotal=cs.indices.shards.total;
+  $('ovShards').textContent=(shardsActive??'—')+' / '+(shardsTotal??shardsActive??'—');
+  $('ovShardsSub').textContent=unassigned?('未分配 '+unassigned):'分配正常';
+  CLUSTER_INFO={name:hh.cluster_name,ver,nodes:hh.number_of_nodes,dataNodes:hh.number_of_data_nodes,status:st,shards:shardsActive,unassigned};
+  renderClusterBar();
   $('ovCluster').innerHTML=[
     ['集群名',hh.cluster_name],['集群 UUID',rt.cluster_uuid],
     ['状态',pillOf(st)],['数据节点 / 总节点',(hh.number_of_data_nodes??'—')+' / '+(hh.number_of_nodes??'—')],
@@ -311,10 +443,10 @@ async function loadOverview(){
     const fs_=n.fs&&n.fs.total;
     const dsk=fs_&&fs_.total_in_bytes?100*(fs_.total_in_bytes-(fs_.free_in_bytes||0))/fs_.total_in_bytes:null;
     const cp=n.os&&n.os.cpu&&n.os.cpu.percent;
-    return `<tr><td>${esc(n.name)}</td><td style="width:260px">堆 ${bar(hp||0)}</td><td style="width:260px">磁盘 ${bar(dsk||0)}</td><td style="width:240px">CPU ${bar(cp||0)}</td><td class="hint">${fmtB(fs_&&fs_.total_in_bytes)} 总量</td></tr>`;
+    return `<tr><td style="width:110px"><b>${esc(n.name)}</b></td><td>堆 ${bar(hp)}</td><td>磁盘 ${bar(dsk)}</td><td>CPU ${bar(cp)}</td><td class="hint">${fmtB(fs_&&fs_.total_in_bytes)} 总量</td></tr>`;
   }).join('')||'<tr><td class="hint">无数据</td></tr>';
 }
-function setES(ok,msg){ES_OK=ok;$('fEs').textContent=(ok?'● ES 已连接':'● ES 不可达')+(msg&&ok?'':'');$('fEs').style.color=ok?'var(--green)':'var(--red)'}
+function setES(ok,msg){ES_OK=ok;$('fEs').innerHTML=(ok?'<span class="esdot" style="background:var(--green)"></span>ES 已连接':'<span class="esdot" style="background:var(--red)"></span>ES 不可达');renderClusterBar()}
 
 /* ---------- 节点 ---------- */
 function nodeRows(filter){
@@ -331,7 +463,7 @@ function nodeRows(filter){
       const hp=jv&&jv.heap_used_percent||0;
       return `<tr><td>${esc(n.name)}</td><td class="hint">${esc(n.ip||'')}</td><td class="hint">${esc(roles)}</td>
       <td>${bar(hp)} <span class="hint">${fmtB(jv&&jv.heap_used_in_bytes)} / ${fmtB(jv&&jv.heap_max_in_bytes)}</span></td>
-      <td>${bar(dsk||0)} <span class="hint">${fmtB(fs_&&fs_.free_in_bytes)} 空闲</span></td>
+      <td>${bar(dsk)} <span class="hint">${fmtB(fs_&&fs_.free_in_bytes)} 空闲</span></td>
       <td>${bar((n.os&&n.os.cpu&&n.os.cpu.percent)||0)}</td>
       <td>${fmtN(oi&&oi.docs&&oi.docs.count)}</td>
       <td class="hint">${fmtB(oi&&oi.indexing&&oi.indexing.index_size_in_bytes)}/s 写 · ${fmtN(oi&&oi.search&&oi.search.query_total)} 查询</td>
@@ -559,6 +691,195 @@ function opsDrain(node,on){
     });
 }
 
+/* ---------- 快照备份 ---------- */
+let SN_REPOS=[]; // 当前仓库列表
+async function snapRefresh(){
+  const {j}=await japi('/api/es/rest',{method:'POST',body:JSON.stringify({method:'GET',path:'/_snapshot'})});
+  SN_REPOS=Object.entries(j||{}).map(([name,info])=>({name,type:(info||{}).type||'fs'}));
+  const sel=$('snRepo');
+  sel.innerHTML='<option value="">（选择仓库）</option>'+SN_REPOS.map(r=>`<option value="${esc(r.name)}">${esc(r.name)}（${esc(r.type)}）</option>`).join('');
+  $('snRepoDel').disabled=!sel.value;
+  snapList();
+}
+$('snRepo').onchange=()=>{ $('snRepoDel').disabled=!$('snRepo').value; snapList(); };
+
+async function snapList(){
+  const repo=$('snRepo').value;
+  const t=$('tSnapshots');
+  if(!repo){t.innerHTML='<tr><td class="hint" style="padding:14px">先在上方选择快照仓库</td></tr>';return}
+  const {j}=await japi('/api/es/rest',{method:'POST',body:JSON.stringify({method:'GET',path:`/_snapshot/${repo}/_all`})});
+  const snaps=(j&&j.snapshots)||[];
+  if(!snaps.length){t.innerHTML='<tr><td class="hint" style="padding:14px">该仓库暂无快照</td></tr>';return}
+  t.innerHTML='<tr><th>快照</th><th>状态</th><th>索引</th><th>分片（成功/失败）</th><th>开始时间</th><th>大小 · 耗时</th><th>操作</th></tr>'+
+  snaps.map(s=>{
+    const dur=s.duration_in_millis!=null?(s.duration_in_millis/1000).toFixed(1)+'s':'—';
+    const start=s.start_epoch_millis?new Date(s.start_epoch_millis).toISOString().slice(0,16).replace('T',' '):'—';
+    const stc=s.state==='SUCCESS'?'pg':s.state==='IN_PROGRESS'?'py':(s.state&&s.state!=='SUCCESS'&&s.state!=='IN_PROGRESS')?'pr':'px';
+    const ss=s.shards_stats||{};
+    return `<tr><td title="${esc(s.snapshot)}">${esc(s.snapshot)}</td><td><span class="pill ${stc}">${esc(s.state||'—')}</span></td>
+    <td class="hint">${(s.indices||[]).length} 个</td><td>${ss.total!=null?ss.total+'（'+ss.done+' / '+(ss.failed||0)+'）':'—'}</td>
+    <td class="hint">${esc(start)}</td><td class="hint">${fmtB((s.stats&&s.stats.total&&s.stats.total.size_in_bytes)||0)} · ${dur}</td>
+    <td><button class="mini" onclick="snapRestoreModal('${esc(repo)}','${esc(s.snapshot)}')">恢复</button>
+    <button class="mini danger" onclick="snapDelete('${esc(repo)}','${esc(s.snapshot)}')">删除</button></td></tr>`;
+  }).join('');
+}
+function snapRepoModal(){
+  $('modalBody').innerHTML=`<h3>注册快照仓库</h3>
+  <table>
+    <tr><td style="width:110px;padding:6px 8px">仓库名</td><td><input class="inp" id="srName" style="width:100%" placeholder="如 my-backup"></td></tr>
+    <tr><td style="padding:6px 8px">路径</td><td><input class="inp" id="srLoc" style="width:100%" placeholder="path.repo 下的相对/绝对路径，如 /data/es-backup"></td></tr>
+    <tr><td style="padding:6px 8px">压缩</td><td><label><input type="checkbox" id="srCompress" checked> 启用压缩（默认开）</label></td></tr>
+  </table>
+  <div class="hint" style="margin-top:8px">PUT _snapshot/&lt;name&gt; {"type":"fs","settings":{"location":...,"compress":...}}；要求节点已配置 path.repo。</div>
+  <div class="mrow"><button class="btn btn2" onclick="modalClose()">取消</button>
+  <button class="btn" onclick="snapRepoCreate()">注册</button></div>`;
+  $('modal').classList.add('on');
+}
+async function snapRepoCreate(){
+  const name=$('srName').value.trim(),loc=$('srLoc').value.trim();
+  if(!name||!loc){toast('仓库名与路径必填',false);return}
+  modalClose();
+  await esAction('PUT',`/_snapshot/${name}`,{type:'fs',settings:{location:loc,compress:$('srCompress').checked}},snapRefresh);
+}
+function snapRepoRemove(){
+  const repo=$('snRepo').value;
+  if(!repo){toast('先选择仓库',false);return}
+  modalConfirm('移除仓库',`移除仓库 <code>${esc(repo)}</code> 的注册（仅解注册，不删磁盘上的快照文件）。`,'移除',true,
+    ()=>esAction('DELETE',`/_snapshot/${repo}`,null,snapRefresh));
+}
+async function snapTake(){
+  const repo=$('snRepo').value,name=$('snName').value.trim();
+  if(!repo||!name){toast('请先选仓库并填快照名',false);return}
+  let path=`/_snapshot/${repo}/${name}?wait_for_completion=true`;
+  const idx=$('snIndices').value.trim();
+  let body=null;
+  if(idx){body={indices:idx.split(',').map(s=>s.trim()).filter(Boolean)}}
+  $('snStat').textContent='拍摄中…（wait_for_completion）';
+  const r=await esAction('PUT',path,body);
+  $('snStat').textContent='';
+  if(r&&r.s===200){
+    const snap=(r.j&&r.j.snapshot)||{};
+    toast(`快照 ${snap.snapshot||name} ${snap.state||'已提交'}`);
+  }
+  snapList();
+}
+function snapRestoreModal(repo,snap){
+  $('modalBody').innerHTML=`<h3>恢复快照</h3>
+  <div style="font-size:13.5px">仓库 <code>${esc(repo)}</code> · 快照 <code>${esc(snap)}</code> 将恢复到集群。</div>
+  <table style="margin-top:10px">
+    <tr><td style="width:140px;padding:6px 8px">只恢复索引（可选）</td><td><input class="inp" id="rvIndices" style="width:100%" placeholder="逗号分隔，空=全部"></td></tr>
+    <tr><td style="padding:6px 8px">重命名前缀</td><td><input class="inp" id="rvPrefix" style="width:100%" placeholder="如 restored_（避免覆盖现索引）"></td></tr>
+  </table>
+  <div class="hint" style="margin-top:8px">同名索引已存在会报错——用重命名前缀恢复到新名字。</div>
+  <div class="mrow"><button class="btn btn2" onclick="modalClose()">取消</button>
+  <button class="btn" onclick="snapRestore('${esc(repo)}','${esc(snap)}')">恢复</button></div>`;
+  $('modal').classList.add('on');
+}
+async function snapRestore(repo,snap){
+  const idx=$('rvIndices').value.trim(),prefix=$('rvPrefix').value.trim();
+  let body={};
+  if(idx)body.indices=idx.split(',').map(s=>s.trim()).filter(Boolean);
+  if(prefix){
+    body.rename_pattern='(.+)';
+    body.rename_replacement=prefix+'$1';
+  }
+  modalClose();
+  const r=await esAction('POST',`/_snapshot/${repo}/${snap}/_restore?wait_for_completion=true`,body);
+  if(r&&r.s===200){
+    const sh=(r.j&&r.j.snapshot&&r.j.snapshot.shards)||0;
+    toast(`恢复完成（${sh} 分片）`);
+  }
+  snapList();
+}
+function snapDelete(repo,snap){
+  modalConfirm('删除快照',`将从仓库 <code>${esc(repo)}</code> 永久删除快照 <code>${esc(snap)}</code>。`,'删除',true,
+    ()=>esAction('DELETE',`/_snapshot/${repo}/${snap}`,null,snapList));
+}
+
+/* ---------- 查询控制台 ---------- */
+let Q_LAST=null; // 最近一次响应
+const Q_PRESETS={
+  match:`{
+  "size": 10,
+  "query": {
+    "match": { "_id": "替换为关键词" }
+  },
+  "sort": [ { "_doc": "asc" } ]
+}`,
+  agg:`{
+  "size": 0,
+  "aggs": {
+    "by_date": {
+      "date_histogram": {
+        "field": "@timestamp",
+        "fixed_interval": "1d"
+      }
+    }
+  }
+}`,
+  reset:`{
+  "size": 10,
+  "query": { "match_all": {} }
+}`
+};
+function qPreset(k){$('qBody').value=Q_PRESETS[k]}
+async function qLoadIndices(){
+  const {j}=await japi('/api/es/indices');
+  const arr=Array.isArray(j)?j:[];
+  const cur=$('qIndex').value;
+  $('qIndex').innerHTML='<option value="">索引：全部</option>'+arr.map(r=>`<option value="${esc(r.index)}">${esc(r.index)}</option>`).join('');
+  if(arr.some(r=>r.index===cur))$('qIndex').value=cur;
+}
+async function qExec(){
+  let body;
+  try{body=JSON.parse($('qBody').value)}
+  catch(e){toast('查询体不是合法 JSON：'+e.message,false);return}
+  const idx=$('qIndex').value||'_all';
+  $('qStat').textContent='查询中…';
+  const t0=performance.now();
+  const {j,s}=await japi('/api/es/rest',{method:'POST',body:JSON.stringify({method:'POST',path:`/${idx}/_search`,body})});
+  const ms=(performance.now()-t0).toFixed(0);
+  if(s!==200){$('qStat').textContent='';toast(j.error||`ES 拒绝（HTTP ${s}）`,false);return}
+  Q_LAST=j;
+  const took=(j.took!=null?j.took:ms);
+  const hits=(j.hits&&j.hits.total)!=null?(typeof j.hits.total==='object'?j.hits.total.value:j.hits.total):null;
+  $('qStat').textContent=`命中 ${hits!=null?fmtN(hits):'—'} · 耗时 ${took} ms · 返回 ${(j.hits&&j.hits.hits||[]).length} 条`;
+  qRender();
+}
+function qRender(){
+  const out=$('qResult');
+  if(!Q_LAST){out.innerHTML='<div class="hint" style="padding:20px">执行查询后结果将展示在这里</div>';return}
+  if($('qRaw').checked){
+    out.innerHTML=`<pre class="code" style="max-height:56vh">${esc(JSON.stringify(Q_LAST,null,2))}</pre>`;
+    return;
+  }
+  const hits=(Q_LAST.hits&&Q_LAST.hits.hits)||[];
+  // 聚合结果视图
+  const aggs=Q_LAST.aggregations||null;
+  let aggHtml='';
+  if(aggs){
+    aggHtml=`<div class="kv" style="margin-bottom:10px"><h3>聚合结果</h3><pre class="code" style="max-height:30vh">${esc(JSON.stringify(aggs,null,2))}</pre></div>`;
+  }
+  if(!hits.length){
+    out.innerHTML=aggHtml+'<div class="hint" style="padding:16px">'+(aggs?'无命中行（纯聚合查询）':'无命中')+'</div>';
+    return;
+  }
+  // 动态列：取所有 _source 的键并集（保序：首条优先）
+  const keys=[];
+  const seen=new Set();
+  hits.forEach(h=>{
+    Object.keys(h._source||{}).forEach(k=>{if(!seen.has(k)){seen.add(k);keys.push(k)}});
+    if(h._id!=null&&!seen.has('_id')){}
+  });
+  out.innerHTML=aggHtml+`<table class="tbl"><tr><th>#</th>${keys.map(k=>`<th>${esc(k)}</th>`).join('')}</tr>`+
+  hits.map((h,i)=>`<tr><td class="hint">${i+1}</td>${keys.map(k=>{
+    let v=(h._source||{})[k];
+    if(v==null)v=h[k]!==undefined&&k!=='_source'?h[k]:''; // 允许 _id/_score
+    let txt=typeof v==='object'?JSON.stringify(v):String(v);
+    return `<td style="max-width:280px;overflow:hidden;text-overflow:ellipsis" title="${esc(txt)}">${esc(txt)}</td>`;
+  }).join('')}</tr>`).join('')+'</table>';
+}
+
 /* ---------- 品牌定制：logo 上传 ---------- */
 function brandLogoFile(inp){
   const f=inp.files&&inp.files[0];
@@ -595,8 +916,11 @@ async function boot(){
   await applyBrand();
   await logLoadFiles();
   const p=location.hash.slice(1)||'overview';nav(p);
-  if(j.es&&j.es.ok){setES(true);hdrExtra('ES '+(j.es.version&&(j.es.version.number)||'')+' · '+(j.es.clusterName||''))}
-  else{setES(false);hdrExtra('ES 未连接，请检查 searchboard.yml 配置')}
+  if(j.es&&j.es.ok){
+    CLUSTER_INFO={name:j.es.clusterName,ver:(j.es.version&&j.es.version.number)||'',status:'green'};
+    setES(true);
+  }else{setES(false)}
+  renderClusterBar();
   clearInterval(POLL);
   POLL=setInterval(async()=>{
     const {j:h}=await japi('/api/health');
