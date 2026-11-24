@@ -181,6 +181,7 @@ pre.code{background:var(--bg2);border:1px solid var(--border);border-radius:var(
     </div>
     <div class="kv"><h3>集群信息</h3><table id="ovCluster"></table></div>
     <div class="kv"><h3>节点资源（堆 / 磁盘 / CPU）</h3><table id="ovRes"></table></div>
+    <div class="kv"><h3>Top 索引（按存储）</h3><table id="ovTopIdx"></table></div>
   </section>
 
   <section class="page" id="pg-nodes">
@@ -189,7 +190,9 @@ pre.code{background:var(--bg2);border:1px solid var(--border);border-radius:var(
   </section>
 
   <section class="page" id="pg-indices">
-    <div class="row"><input class="inp" id="iFilter" placeholder="过滤索引…" style="width:220px"><div class="sp"></div><button class="btn" onclick="loadIndices()">刷新</button></div>
+    <div class="row"><input class="inp" id="iFilter" placeholder="过滤索引…" style="width:220px">
+      <select class="sel" id="iSort"><option value="name">按名称</option><option value="docs">按文档量</option><option value="store">按存储</option><option value="created">按创建时间</option></select>
+      <div class="sp"></div><button class="btn" onclick="loadIndices()">刷新</button></div>
     <table class="tbl" id="tIndices"></table>
   </section>
 
@@ -289,9 +292,12 @@ pre.code{background:var(--bg2);border:1px solid var(--border);border-radius:var(
       <button class="btn btn2" onclick="restQuick('_cat/shards?format=json&bytes=b')">_cat/shards</button>
       <button class="btn btn2" onclick="restQuick('_cluster/stats')">_cluster/stats</button>
       <button class="btn btn2" onclick="restQuick('_nodes/stats')">_nodes/stats</button>
+      <span class="hint" style="margin-left:10px">Ctrl+Enter 发送</span>
     </div>
     <textarea id="rBody" rows="5" placeholder='请求体（POST/PUT 时填写，JSON）' style="width:100%"></textarea>
-    <div class="row" style="margin-top:12px"><span class="hint" id="rMeta"></span><div class="sp"></div><button class="btn btn2" onclick="copyResp()">复制响应</button></div>
+    <div class="row" style="margin-top:12px"><span class="hint" id="rMeta"></span>
+      <select class="sel" id="rHist" style="max-width:280px" onchange="restHistApply(this)"><option value="">历史记录</option></select>
+      <div class="sp"></div><button class="btn btn2" onclick="copyResp()">复制响应</button></div>
     <pre class="code" id="rResp">响应将显示在这里</pre>
   </section>
 
@@ -302,6 +308,8 @@ pre.code{background:var(--bg2);border:1px solid var(--border);border-radius:var(
       <button class="btn" id="lStart" onclick="logStart()">开始</button>
       <button class="btn stop" id="lStop" onclick="logStop()" disabled>停止</button>
       <label style="color:var(--muted);font-size:12px"><input type="checkbox" id="lAuto" checked> 自动滚动</label>
+      <select class="sel" id="lLevel"><option value="">全部级别</option><option value="ERROR">仅 ERROR</option><option value="ERROR,WARN">ERROR+WARN</option></select>
+      <input class="inp" id="lSearch" placeholder="过滤关键词…" style="width:140px">
       <div class="sp"></div><button class="btn btn2" onclick="logClear()">清屏</button>
       <span class="hint" id="lStat"></span>
     </div>
@@ -445,6 +453,17 @@ async function loadOverview(){
     const cp=n.os&&n.os.cpu&&n.os.cpu.percent;
     return `<tr><td style="width:110px"><b>${esc(n.name)}</b></td><td>堆 ${bar(hp)}</td><td>磁盘 ${bar(dsk)}</td><td>CPU ${bar(cp)}</td><td class="hint">${fmtB(fs_&&fs_.total_in_bytes)} 总量</td></tr>`;
   }).join('')||'<tr><td class="hint">无数据</td></tr>';
+  // Top 索引（按存储，前 8）
+  const num=v=>Number(String(v).replace(/[^0-9.]/g,''))||0;
+  const top=[...idxArr].sort((a,b)=>num(b['store.size']||b['docs.store.size'])-num(a['store.size']||a['docs.store.size'])).slice(0,8);
+  const maxV=top.length?num(top[0]['store.size']||top[0]['docs.store.size']):0;
+  $('ovTopIdx').innerHTML=top.map(r=>{
+    const v=num(r['store.size']||r['docs.store.size']);
+    const w=maxV?Math.round(v/maxV*100):0;
+    return `<tr><td style="width:180px"><a href="javascript:void(0)" style="color:var(--text);text-decoration:none" onclick="location.hash='indices'">${esc(r.index)}</a></td>
+    <td><span class="bar"><span class="track"><span class="fill" style="width:${w}%"></span></span></span></td>
+    <td class="hint" style="width:90px;text-align:right">${fmtB(v)}</td></tr>`;
+  }).join('')||'<tr><td class="hint">无索引数据</td></tr>';
 }
 function setES(ok,msg){ES_OK=ok;$('fEs').innerHTML=(ok?'<span class="esdot" style="background:var(--green)"></span>ES 已连接':'<span class="esdot" style="background:var(--red)"></span>ES 不可达');renderClusterBar()}
 
@@ -475,27 +494,70 @@ let loadNodes=nodeRows('');
 $('nFilter').oninput=e=>{loadNodes=nodeRows(e.target.value);loadNodes()};
 
 /* ---------- 索引 ---------- */
+let IDX_RAW=[]; // 最近一次索引数据（详情抽屉用）
 function idxRows(filter){
   return async()=>{
     const {j,s}=await japi('/api/es/indices');
     const arr=Array.isArray(j)?j:[];
+    IDX_RAW=arr;
     const f=(filter||'').toLowerCase();
-    const rows=arr.filter(r=>!f||(r.index||'').toLowerCase().includes(f));
+    let rows=arr.filter(r=>!f||(r.index||'').toLowerCase().includes(f));
+    // 排序
+    const sort=$('iSort').value;
+    const numC=v=>Number(String(v).replace(/[^0-9.]/g,''))||0;
+    if(sort==='docs')rows=[...rows].sort((a,b)=>numC(b['docs.count'])-numC(a['docs.count']));
+    else if(sort==='store')rows=[...rows].sort((a,b)=>numC(b['store.size']||b['docs.store.size'])-numC(a['store.size']||a['docs.store.size']));
+    else if(sort==='created')rows=[...rows].sort((a,b)=>String(b['creation.date']||'').localeCompare(String(a['creation.date']||'')));
+    else rows=[...rows].sort((a,b)=>String(a.index).localeCompare(String(b.index)));
     $('tIndices').innerHTML='<tr><th>健康</th><th>状态</th><th>索引名</th><th>UUID</th><th>主分片</th><th>副本</th><th>文档</th><th>存储</th><th>创建时间</th><th>操作</th></tr>'+
     (rows.map(r=>{
       const ct=r['creation.date.string']||'';
-      return `<tr><td>${pillOf(r.health)}</td><td class="hint">${esc(r.status)}</td><td>${esc(r.index)}</td>
+      return `<tr><td>${pillOf(r.health)}</td><td class="hint">${esc(r.status)}</td>
+      <td><a href="javascript:void(0)" style="color:var(--text);text-decoration:none;font-weight:600" onclick="idxDetail('${esc(r.index)}')">${esc(r.index)}</a></td>
       <td class="hint" style="font-family:var(--mono)">${esc(r.uuid)}</td><td>${esc(r.pri)}</td><td>${esc(r.rep)}</td>
       <td>${fmtN(r['docs.count'])}</td><td>${fmtB(r['docs.store.size']||r['store.size'])}</td><td class="hint">${esc(ct)}</td>
       <td>
         <button class="mini danger" onclick="idxDelete('${esc(r.index)}')">删除</button>
         <button class="mini" onclick="idxToggle('${esc(r.index)}','${r.status==='open'?'close':'open'}')">${r.status==='open'?'关闭':'打开'}</button>
+        <button class="mini" onclick="idxDetail('${esc(r.index)}')">详情</button>
       </td></tr>`;
     }).join('')||'<tr><td colspan="10" class="hint">无索引或 ES 不可达</td></tr>');
   };
 }
 let loadIndices=idxRows('');
 $('iFilter').oninput=e=>{loadIndices=idxRows(e.target.value);loadIndices()};
+$('iSort').onchange=()=>loadIndices();
+
+// 索引详情抽屉：settings / mappings / stats 三标签
+const IDX_TABS=['settings','mappings','stats'];
+let IDX_DETAIL_CACHE={};
+async function idxDetail(name){
+  // 行内 cat 数据（列表已加载）
+  const cat=IDX_RAW.find(r=>r.index===name)||{};
+  const [settings,mappings,stats]=await Promise.all([
+    japi('/api/es/rest',{method:'POST',body:JSON.stringify({method:'GET',path:`/${name}/_settings`})}),
+    japi('/api/es/rest',{method:'POST',body:JSON.stringify({method:'GET',path:`/${name}/_mapping`})}),
+    japi('/api/es/rest',{method:'POST',body:JSON.stringify({method:'GET',path:`/${name}/_stats`})}),
+  ]);
+  IDX_DETAIL_CACHE={settings:settings.j,mappings:mappings.j,stats:stats.j};
+  $('modalBody').innerHTML=`<h3>索引详情 · ${esc(name)}</h3>
+  <div class="kv" style="margin-bottom:12px"><table>
+    <tr><td>健康 / 状态</td><td>${pillOf(cat.health)} ${esc(cat.status||'')}</td></tr>
+    <tr><td>主分片 / 副本</td><td>${esc(cat.pri)} / ${esc(cat.rep)}</td></tr>
+    <tr><td>文档 / 存储</td><td>${fmtN(cat['docs.count'])} · ${fmtB(cat['docs.store.size']||cat['store.size'])}</td></tr>
+  </table></div>
+  <div class="row" style="margin-bottom:8px">
+    ${IDX_TABS.map((t,i)=>`<button class="btn btn2 ${i===0?'on':''}" id="idxTab_${t}" onclick="idxTab('${t}')">${t}</button>`).join('')}
+  </div>
+  <div id="idxTabBody"></div>
+  <div class="mrow"><button class="btn btn2" onclick="modalClose()">关闭</button></div>`;
+  idxTab('settings');
+  $('modal').classList.add('on');
+}
+function idxTab(t){
+  IDX_TABS.forEach(x=>{const b=$('idxTab_'+x);if(b)b.classList.toggle('on',x===t)});
+  $('idxTabBody').innerHTML=`<pre class="code" style="max-height:40vh">${esc(JSON.stringify(IDX_DETAIL_CACHE[t]||{},null,2))}</pre>`;
+}
 
 /* ---------- 分片 ---------- */
 function shardRows(filter,state){
@@ -505,9 +567,18 @@ function shardRows(filter,state){
     const f=(filter||'').toLowerCase();
     const rows=arr.filter(r=>(!f||(r.index||'').toLowerCase().includes(f))&&(!state||r.state===state));
     const statePill=s=>`<span class="pill ${s==='STARTED'?'pg':s==='UNASSIGNED'?'px':s==='RELOCATING'?'py':'pr'}">${esc(s)}</span>`;
+    // 按索引分组渲染：索引头行（可折叠）+ 分片行
+    const byIdx=new Map();
+    rows.forEach(r=>{if(!byIdx.has(r.index))byIdx.set(r.index,[]);byIdx.get(r.index).push(r)});
+    const html=[];
+    byIdx.forEach((list,idx)=>{
+      const unassigned=list.filter(s=>s.state==='UNASSIGNED').length;
+      html.push(`<tr style="background:var(--panel2)"><td colspan="7"><b>${esc(idx)}</b> <span class="hint">· ${list.length} 分片${unassigned?` · <span class="err">${unassigned} 未分配</span>`:''}</span></td></tr>`);
+      list.forEach(r=>html.push(`<tr><td class="hint">${esc(r.index)}</td><td>${esc(r.shard)}</td><td>${esc(r.prirep==='p'?'主':'副')}</td>
+      <td>${statePill(r.state)}</td><td>${fmtB(r.store)}</td><td>${fmtN(r.docs)}</td><td class="hint">${esc(r.node||'—')}</td></tr>`));
+    });
     $('tShards').innerHTML='<tr><th>索引</th><th>分片</th><th>主/副</th><th>状态</th><th>存储</th><th>文档</th><th>节点</th></tr>'+
-    (rows.map(r=>`<tr><td>${esc(r.index)}</td><td>${esc(r.shard)}</td><td>${esc(r.prirep==='p'?'主':'副')}</td>
-    <td>${statePill(r.state)}</td><td>${fmtB(r.store)}</td><td>${fmtN(r.docs)}</td><td class="hint">${esc(r.node||'—')}</td></tr>`).join('')||'<tr><td colspan="7" class="hint">无匹配分片</td></tr>');
+    (html.join('')||'<tr><td colspan="7" class="hint">无匹配分片</td></tr>');
   };
 }
 let loadShards=shardRows('','');
@@ -516,9 +587,28 @@ $('sState').onchange=e=>{loadShards=shardRows($('sFilter').value,e.target.value)
 
 /* ---------- REST 控制台 ---------- */
 function restQuick(p){$('rMethod').value='GET';$('rPath').value=p;restSend()}
+let REST_HIST=[]; // [{m,p,body}]（最多 30 条）
+function restHistRender(){
+  const sel=$('rHist');
+  sel.innerHTML='<option value="">历史记录（'+REST_HIST.length+'）</option>'+
+    REST_HIST.map((h,i)=>`<option value="${i}">${esc(h.m)} ${esc(h.p)}</option>`).join('');
+}
+function restHistApply(sel){
+  const i=parseInt(sel.value||'',10);
+  if(isNaN(i))return;
+  const h=REST_HIST[i];
+  if(!h)return;
+  $('rMethod').value=h.m;$('rPath').value=h.p;$('rBody').value=h.body||'';
+  restSend();
+}
 async function restSend(){
   const m=$('rMethod').value,p=$('rPath').value.trim()||'/';
   const body=m==='GET'||m==='HEAD'?null:$('rBody').value.trim();
+  // 历史记录（去重：同 method+path 只留最新，body 取本次）
+  REST_HIST=REST_HIST.filter(h=>!(h.m===m&&h.p===p));
+  REST_HIST.unshift({m,p,body:body||''});
+  if(REST_HIST.length>30)REST_HIST.pop();
+  restHistRender();
   const t0=performance.now();
   $('rResp').textContent='请求中…';
   try{
@@ -530,6 +620,13 @@ async function restSend(){
     try{$('rResp').textContent=JSON.stringify(JSON.parse(t),null,2)}catch(e){$('rResp').textContent=t||'(空响应)'}
   }catch(e){$('rResp').textContent='请求失败：'+e.message}
 }
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){
+    const onRest=document.querySelector('#pg-rest.on'),onQ=document.querySelector('#pg-search.on');
+    if(onRest){e.preventDefault();restSend()}
+    else if(onQ){e.preventDefault();qExec()}
+  }
+});
 function copyResp(){navigator.clipboard.writeText($('rResp').textContent).then(()=>toast('已复制响应'))}
 
 /* ---------- 日志 ---------- */
@@ -558,19 +655,58 @@ function logStop(){
   if(LOG_ES){LOG_ES.close();LOG_ES=null}
   LOG_ON=false;$('lStart').disabled=false;$('lStop').disabled=true;logStat('已停止');
 }
-function logClear(){$('lBox').innerHTML='';logStat('')}
+function logClear(){$('lBox').innerHTML='';LOG_LINES=[];logStat('')}
 function logStat(s){$('lStat').textContent=s}
+let LOG_LINES=[]; // 全量行缓冲（过滤视图由此派生）
+function logLevelOf(text){
+  if(/\bERROR\b|\berror\b|Exception|FATAL/.test(text))return 'ERROR';
+  if(/\bWARN\b|warning/i.test(text))return 'WARN';
+  return 'INFO';
+}
+function logFilterOf(){
+  const lvl=$('lLevel').value; // '' | 'ERROR' | 'ERROR,WARN'
+  const kw=($('lSearch').value||'').toLowerCase();
+  return t=>{
+    if(lvl&&!lvl.split(',').includes(logLevelOf(t)))return false;
+    if(kw&&!t.toLowerCase().includes(kw))return false;
+    return true;
+  };
+}
+function logRender(){
+  const keep=logFilterOf();
+  const box=$('lBox');
+  const frag=document.createDocumentFragment();
+  LOG_LINES.forEach(text=>{
+    if(!keep(text))return;
+    const d=document.createElement('div');d.textContent=text;
+    const lv=logLevelOf(text);
+    if(lv==='ERROR')d.style.color='var(--red)';
+    else if(lv==='WARN')d.style.color='var(--yellow)';
+    if(/^\d{4}-\d{2}-\d{2}[T\s]/.test(text))d.style.borderTop='1px solid rgba(255,255,255,.04)';
+    frag.appendChild(d);
+  });
+  box.innerHTML='';
+  box.appendChild(frag);
+  if($('lAuto').checked)box.scrollTop=box.scrollHeight;
+}
 function logAppend(text){
+  LOG_LINES.push(text);
+  if(LOG_LINES.length>12000)LOG_LINES.splice(0,LOG_LINES.length-10000);
+  const keep=logFilterOf();
+  if(!keep(text))return;
   const box=$('lBox');
   if(box.firstChild&&box.firstChild.classList&&box.firstChild.classList.contains('muted'))box.innerHTML='';
   const d=document.createElement('div');d.textContent=text;
+  const lv=logLevelOf(text);
+  if(lv==='ERROR')d.style.color='var(--red)';
+  else if(lv==='WARN')d.style.color='var(--yellow)';
   if(/^\d{4}-\d{2}-\d{2}[T\s]/.test(text))d.style.borderTop='1px solid rgba(255,255,255,.04)';
-  if(/\bERROR\b|\berror\b|Exception|FATAL/.test(text))d.style.color='var(--red)';
-  else if(/\bWARN\b|warning/i.test(text))d.style.color='var(--yellow)';
   box.appendChild(d);
-  while(box.childElementCount>8000)box.removeChild(box.firstChild);
   if($('lAuto').checked)box.scrollTop=box.scrollHeight;
 }
+$('lLevel').onchange=logRender;
+let lSearchTimer=null;
+$('lSearch').oninput=()=>{clearTimeout(lSearchTimer);lSearchTimer=setTimeout(logRender,300)};
 $('lFile').onfocus=logLoadFiles;
 window.addEventListener('beforeunload',()=>{if(LOG_ES)LOG_ES.close()});
 
