@@ -22,6 +22,7 @@ import (
 	"github.com/ezscloud/searchboard/framework/ext/static"
 	"github.com/ezscloud/searchboard/framework/vfs"
 	"github.com/ezscloud/searchboard/internal/api"
+	"github.com/ezscloud/searchboard/internal/cluster"
 	"github.com/ezscloud/searchboard/internal/config"
 	"github.com/ezscloud/searchboard/internal/es"
 	"github.com/ezscloud/searchboard/internal/logtail"
@@ -42,6 +43,20 @@ func main() {
 	// ---- 组件装配 ----
 	esClient := es.New(cfg.Elasticsearch.URL, cfg.Elasticsearch.Username,
 		cfg.Elasticsearch.Password, cfg.Elasticsearch.InsecureSkipVerify)
+
+	// 多集群注册表：首次运行时用启动配置生成 local 默认集群并落盘
+	clusters, err := cluster.Open(cfg.ClustersFile, cluster.Cluster{
+		Name:               "local",
+		URL:                cfg.Elasticsearch.URL,
+		Username:           cfg.Elasticsearch.Username,
+		Password:           cfg.Elasticsearch.Password,
+		InsecureSkipVerify: cfg.Elasticsearch.InsecureSkipVerify,
+		TimeoutMS:          30000,
+		Note:               "searchboard.yml 启动默认",
+	})
+	if err != nil {
+		log.Fatalf("[searchboard] %v", err)
+	}
 	tailer := logtail.New(cfg.Logs.Dir, cfg.Logs.Pattern,
 		cfg.Logs.PollInterval.D(), cfg.Logs.MaxFiles)
 	brand := api.NewBrandState(api.Brand{
@@ -75,6 +90,7 @@ func main() {
 	srv.Use(gzip.Middleware(gzip.Config{}))
 	api.Register(srv, api.Options{
 		ES:        esClient,
+		Clusters:  clusters,
 		Tail:      tailer,
 		Brand:     brand,
 		Version:   version,
@@ -88,8 +104,9 @@ func main() {
 	// 其余路径 → SPA（embed 基座 index.html + 覆盖层优先）
 	srv.GET("/", static.Handler(stack, static.Options{SPA: "index.html"}))
 
-	log.Printf("[searchboard] v%s 监听 http://%s  ES=%s  日志目录=%s",
-		version, cfg.Listen, cfg.Elasticsearch.URL, cfg.Logs.Dir)
+	log.Printf("[searchboard] v%s 监听 http://%s  集群=%d 个（当前 %s / %s）日志目录=%s",
+		version, cfg.Listen, len(clusters.Names()), clusters.Current(),
+		cfg.ClustersFile, cfg.Logs.Dir)
 
 	// ---- 优雅停机 ----
 	go func() {

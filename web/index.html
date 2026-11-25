@@ -82,6 +82,28 @@ section.page.on{display:block}
 .shchip.i{background:rgba(232,182,76,.22);color:var(--yellow);border:1.5px dashed var(--yellow)}
 .shchip.rl{background:rgba(63,200,221,.22);color:var(--cyan)}
 .shchip.u{border:1.5px solid var(--red);color:var(--red)}
+/* 顶栏集群切换器 */
+.csSel{background:var(--panel2);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:5px 8px;font-size:12px;max-width:220px}
+.csSel:focus{outline:0;border-color:var(--accent)}
+/* DevTools 查询控制台 */
+.dev-wrap{display:flex;gap:12px;height:calc(100vh - 152px);min-height:420px}
+.dev-pane{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.dev-bar{display:flex;align-items:center;gap:6px;padding:7px 10px;border-bottom:1px solid var(--border);background:var(--panel2);flex-wrap:wrap;flex:none}
+.dev-editor{flex:1;display:flex;overflow:hidden;background:var(--bg2)}
+.dev-lines{width:46px;flex:none;padding:10px 8px 10px 0;text-align:right;color:var(--muted);font-family:var(--mono);font-size:12.5px;line-height:1.66;user-select:none;overflow:hidden;background:var(--bg2);border-right:1px solid var(--border)}
+.dev-editor textarea{flex:1;min-width:0}
+#qBody{border:0;outline:0;resize:none;background:transparent;color:var(--text);font-family:var(--mono);font-size:12.5px;line-height:1.66;padding:10px 12px;white-space:pre;overflow:auto;tab-size:2}
+.dev-resp{flex:1;overflow:auto;padding:10px 12px;font-family:var(--mono);font-size:12.5px;line-height:1.62}
+.dev-resp pre.code{margin:0;max-height:none}
+.dev-resp .req-tag{display:inline-block;background:var(--accent-dim);color:var(--accent);border-radius:6px;padding:2px 8px;font-size:11px;margin:2px 6px 8px 0}
+.dev-resp details{margin:2px 0 2px 14px}
+.dev-resp summary{cursor:pointer;color:var(--text2);list-style:none}
+.dev-resp summary::-webkit-details-marker{display:none}
+.dev-resp summary::before{content:"▸";color:var(--muted);margin-right:5px;display:inline-block;transition:transform .12s}
+.dev-resp details[open]>summary::before{transform:rotate(90deg)}
+.jk{color:var(--cyan)} .jv-str{color:var(--green)} .jv-num{color:var(--yellow)} .jv-bool{color:var(--violet)} .jv-null{color:var(--muted)}
+.dev-err{color:var(--red)}
+@media(max-width:1100px){.dev-wrap{flex-direction:column;height:auto}.dev-pane{min-height:340px}}
 
 /* ---------- 表格 ---------- */
 .tblwrap{border:1px solid var(--border);border-radius:var(--r);overflow:auto;background:var(--panel);max-height:calc(100vh - 170px)}
@@ -162,6 +184,7 @@ pre.code{background:var(--bg2);border:1px solid var(--border);border-radius:var(
     <a data-p="rest"><span class="ic">⌘</span>REST 控制台</a>
     <a data-p="logs"><span class="ic">≡</span>节点日志</a>
     <div class="navgroup">系统</div>
+    <a data-p="clusters"><span class="ic">◈</span>集群管理</a>
     <a data-p="brand"><span class="ic">✎</span>品牌定制</a>
   </nav>
   <div class="foot"><div id="fEs" class="muted">检查 ES 连接…</div><div id="fVer" class="muted"></div></div>
@@ -171,9 +194,11 @@ pre.code{background:var(--bg2);border:1px solid var(--border);border-radius:var(
     <h1 id="pgTitle">总览</h1>
     <div class="sp"></div>
     <div class="cbar">
+      <select class="csSel" id="csSel" title="切换当前集群（全站生效）" onchange="switchCluster(this.value)"><option value="">集群…</option></select>
       <span class="chip" id="cbCluster"><span class="dot dx"></span>未连接</span>
       <span class="chip" id="cbNodes">节点 —</span>
       <span class="chip" id="cbVer">—</span>
+      <a class="mini" href="javascript:void(0)" onclick="location.hash='clusters'" style="text-decoration:none;margin-left:4px">◈ 集群管理</a>
       <span class="hint" id="hdrExtra"></span>
     </div>
   </header>
@@ -235,34 +260,39 @@ pre.code{background:var(--bg2);border:1px solid var(--border);border-radius:var(
   </section>
 
   <section class="page" id="pg-search">
-    <div class="row">
-      <select class="sel" id="qIndex" style="min-width:220px"><option value="">索引：全部</option></select>
-      <button class="btn btn2" onclick="qLoadIndices()">刷新索引列表</button>
-      <div class="sp"></div>
-      <span class="hint" id="qStat"></span>
-    </div>
-    <div class="row" style="margin-top:8px">
-      <textarea id="qBody" rows="9" spellcheck="false" style="flex:1;font-family:var(--mono);font-size:13px">{
-  "size": 10,
-  "query": { "match_all": {} }
-}</textarea>
-      <div style="width:150px;margin-left:10px;display:flex;flex-direction:column;gap:8px">
-        <button class="btn" onclick="qExec()">执行查询</button>
-        <button class="btn btn2" onclick="qPreset('match')">match 模板</button>
-        <button class="btn btn2" onclick="qPreset('agg')">聚合模板</button>
-        <button class="btn btn2" onclick="qPreset('reset')">重置</button>
+    <div class="dev-wrap">
+      <div class="dev-pane">
+        <div class="dev-bar">
+          <span class="hint">DevTools · Ctrl+Enter 执行光标处请求 · <code>###</code> 分隔多请求</span>
+          <div class="sp"></div>
+          <button class="btn btn2" onclick="qFormat()">格式化</button>
+          <button class="btn btn2" onclick="qPreset('match')">match</button>
+          <button class="btn btn2" onclick="qPreset('agg')">聚合</button>
+          <button class="btn btn2" onclick="qPreset('cat')">索引列表</button>
+          <select class="sel" id="qHist" style="max-width:240px" onchange="qHistApply(this)"><option value="">历史</option></select>
+          <button class="btn" onclick="qExec()">▶ 执行</button>
+        </div>
+        <div class="dev-editor">
+          <pre class="dev-lines" id="qLines">1</pre>
+          <textarea id="qBody" spellcheck="false"></textarea>
+        </div>
+      </div>
+      <div class="dev-pane">
+        <div class="dev-bar">
+          <span id="qStat" class="hint">响应面板</span>
+          <div class="sp"></div>
+          <input class="inp" id="qFilter" placeholder="过滤响应行…" style="width:140px" oninput="qRenderResp()">
+          <label class="hint"><input type="checkbox" id="qRaw" onchange="qRenderResp()"> 原始</label>
+          <button class="btn btn2" onclick="qCopy()">复制</button>
+          <button class="btn btn2" onclick="qDownload()">下载</button>
+        </div>
+        <div class="dev-resp" id="qResult"><div class="hint" style="padding:16px">执行请求后结果显示在这里。支持任意 method/path，响应以折叠 JSON 树展示。</div></div>
       </div>
     </div>
-    <div class="row" style="margin-top:10px">
-      <span class="hint">POST /{索引}/_search</span>
-      <select class="sel" id="qHist" style="max-width:360px" onchange="qHistApply(this)"><option value="">查询历史</option></select>
-      <div class="sp"></div>
-      <label class="hint"><input type="checkbox" id="qRaw" onchange="qRender()"> 原始 JSON 视图</label>
-    </div>
-    <div id="qResult"></div>
   </section>
 
   <section class="page" id="pg-ops">
+    <div class="kv" id="opsCtx"><h3>当前集群上下文</h3><div class="hint">加载中…</div></div>
     <div class="kv"><h3>集群设置（transient，离开本页不回滚）</h3>
       <table>
         <tr><td style="width:260px">分片均衡开关</td>
@@ -327,6 +357,18 @@ pre.code{background:var(--bg2);border:1px solid var(--border);border-radius:var(
     <div class="logbox" id="lBox"><div class="muted">选择日志文件后点击「开始」。日志实时流经 SSE 下发，滚动轮转自动重开。</div></div>
   </section>
 
+  <section class="page" id="pg-clusters">
+    <div class="row">
+      <div class="hint" id="cFile">注册表：—</div>
+      <div class="sp"></div>
+      <button class="btn btn2" onclick="clustersStatus()">健康检查</button>
+      <button class="btn" onclick="clusterModalShow()">新增集群</button>
+    </div>
+    <table class="tbl" id="tClusters"></table>
+    <div class="hint" style="margin-top:10px">集群连接信息持久化在 <code id="cFile2">clusters.yml</code>（密码明文落盘，注意文件权限）。
+      切换当前集群后，全站所有页面（总览/索引/分片/查询/运维）立即作用于该集群。删除集群至少保留一个。</div>
+  </section>
+
   <section class="page" id="pg-brand">
     <div class="logo-edit"><img id="bLogo2" alt="logo">
       <div><div>当前 Logo</div><div class="hint">上传（≤256KB，png/svg/jpg/webp）或手动将 logo.png 放入 public_dir</div>
@@ -356,10 +398,17 @@ pre.code{background:var(--bg2);border:1px solid var(--border);border-radius:var(
 'use strict';
 const $=id=>document.getElementById(id);
 let ES_OK=false, POLL=null, LOG_ES=null, LOG_ON=false;
+let CUR_CLUSTER=localStorage.getItem('sb.cluster')||''; // 当前集群（X-Cluster 头）
 
 /* ---------- 通用 ---------- */
-async function api(path,opts){const r=await fetch(path,Object.assign({headers:{'Content-Type':'application/json'}},opts||{}));return r}
-async function japi(path,opts){const r=await api(path,opts);const t=await r.text();try{return{j:JSON.parse(t),s:r.status}}catch(e){return{j:{raw:t},s:r.status}}}
+async function api(path,opts){
+  opts=opts||{};
+  const h=Object.assign({'Content-Type':'application/json'},opts.headers||{});
+  if(CUR_CLUSTER&&!h['X-Cluster'])h['X-Cluster']=CUR_CLUSTER;
+  const r=await fetch(path,Object.assign({},opts,{headers:h}));
+  return r;
+}
+async function japi(path,opts){const r=await api(path,opts);const t=await r.text();try{return{j:JSON.parse(t),s:r.status,raw:t}}catch(e){return{j:{raw:t},s:r.status,raw:t}}}
 function toast(m,ok=true){const t=$('toast');t.textContent=m;t.style.borderColor=ok?'var(--border)':'var(--red)';t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',2200)}
 function fmtB(n){if(n==null||isNaN(n))return '—';n=Number(n);if(n<1024)return n+' B';const u=['KB','MB','GB','TB','PB'];let i=-1;do{n/=1024;i++}while(n>=1024&&i<u.length-1);return n.toFixed(n<10?2:1)+' '+u[i]}
 function fmtN(n){if(n==null||isNaN(n))return '—';return Number(n).toLocaleString('en-US')}
@@ -393,9 +442,9 @@ async function brandReset(){
 }
 
 /* ---------- 路由 ---------- */
-const TITLES={overview:'总览',nodes:'节点',indices:'索引',shards:'分片',aliases:'别名',snapshots:'快照备份',search:'查询控制台',ops:'集群运维',rest:'REST 控制台',logs:'节点日志',brand:'品牌定制'};
+const TITLES={overview:'总览',nodes:'节点',indices:'索引',shards:'分片',aliases:'别名',snapshots:'快照备份',search:'查询控制台',ops:'集群运维',rest:'REST 控制台',logs:'节点日志',clusters:'集群管理',brand:'品牌定制'};
 // 惰性引用（loadNodes 等为 let 可重赋值变量，调用时取当前值，避免 TDZ）
-const LOADERS={overview:loadOverview,nodes:()=>loadNodes(),indices:()=>loadIndices(),shards:()=>loadShards(),aliases:()=>loadAliases(),snapshots:()=>snapRefresh(),search:()=>qLoadIndices(),ops:()=>loadOps()};
+const LOADERS={overview:loadOverview,nodes:()=>loadNodes(),indices:()=>loadIndices(),shards:()=>loadShards(),aliases:()=>loadAliases(),snapshots:()=>snapRefresh(),search:()=>qFocus(),ops:()=>loadOps(),clusters:()=>loadClusters()};
 function nav(p){
   document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('on',a.dataset.p===p));
   document.querySelectorAll('.page').forEach(s=>s.classList.toggle('on',s.id==='pg-'+p));
@@ -405,6 +454,154 @@ function nav(p){
 }
 document.querySelectorAll('nav a').forEach(a=>a.onclick=()=>{location.hash=a.dataset.p});
 window.addEventListener('hashchange',()=>nav(location.hash.slice(1)||'overview'));
+
+/* ---------- 多集群 ---------- */
+let CLUSTERS=null;            // {current,list,file}
+let CLUSTER_STATUS={};        // name → {ok,ms,cluster_name,version,error}
+async function clustersBootstrap(){
+  const {j,s}=await japi('/api/clusters');
+  if(s!==200||!j||!j.list)return;
+  CLUSTERS=j;
+  const names=(j.list||[]).map(c=>c.name);
+  if(CUR_CLUSTER&&!names.includes(CUR_CLUSTER))CUR_CLUSTER='';
+  if(!CUR_CLUSTER)CUR_CLUSTER=j.current||names[0]||'';
+  if(CUR_CLUSTER)localStorage.setItem('sb.cluster',CUR_CLUSTER);
+  fillClusterSel();
+}
+function fillClusterSel(){
+  const sel=$('csSel');
+  if(!CLUSTERS||!(CLUSTERS.list||[]).length){sel.innerHTML='<option value="">（无集群）</option>';return}
+  const cur=CUR_CLUSTER||CLUSTERS.current||'';
+  sel.innerHTML=CLUSTERS.list.map(c=>
+    `<option value="${esc(c.name)}" ${c.name===cur?'selected':''}>${esc(c.name)} · ${esc(String(c.url||'').replace(/^https?:\/\//,''))}</option>`
+  ).join('');
+}
+async function refreshClusterBadge(){
+  const {j:h}=await japi('/api/health');
+  if(!h.ok){setES(false);return}
+  const hh=h.health||{};
+  let ver='';
+  try{const {j:rt}=await japi('/api/es/root');ver=(rt.version&&rt.version.number)||''}catch(e){}
+  CLUSTER_INFO={name:hh.cluster_name,ver,nodes:hh.number_of_nodes,dataNodes:hh.number_of_data_nodes,status:hh.status||''};
+  setES(true);
+}
+async function switchCluster(name){
+  if(!name||name===CUR_CLUSTER){fillClusterSel();return}
+  const {j,s}=await japi('/api/clusters/current',{method:'POST',body:JSON.stringify({name})});
+  if(s!==200){toast(j.error||'切换失败',false);fillClusterSel();return}
+  CUR_CLUSTER=name;localStorage.setItem('sb.cluster',name);
+  ES_OK=false;CLUSTER_INFO=null;renderClusterBar();
+  toast('已切换到集群：'+name);
+  await refreshClusterBadge();
+  const p=location.hash.slice(1)||'overview';
+  (LOADERS[p]||(()=>{}))();
+}
+async function setCurrentCluster(name){await switchCluster(name);await loadClusters()}
+function clusterStatusCell(st){
+  if(!st)return '<span class="dot dx"></span> 未检测';
+  return st.ok?('<span class="dot dg"></span> 在线'+(st.ms!=null?' <span class="hint">'+st.ms+'ms</span>':''))
+              :('<span class="dot dr"></span> 不可达');
+}
+async function loadClusters(){
+  const {j,s}=await japi('/api/clusters');
+  if(s!==200){toast(j.error||'加载集群失败',false);return}
+  CLUSTERS=j; fillClusterSel();
+  const list=j.list||[];
+  $('cFile').textContent='注册表：'+(j.file||'—')+'  ·  当前：'+(j.current||'—');
+  $('cFile2').textContent=j.file||'clusters.yml';
+  $('tClusters').innerHTML='<tr><th style="width:120px">状态</th><th>名称</th><th>地址</th><th>账号</th><th>集群 / 版本</th><th>当前</th><th>操作</th></tr>'+
+    (list.map(c=>{
+      const st=CLUSTER_STATUS[c.name];
+      const vNum=st&&st.version?(typeof st.version==='object'?(st.version.number||''):st.version):'';
+      const info=st&&st.ok&&st.cluster_name?esc(st.cluster_name)+(vNum?' <span class="hint">'+esc(vNum)+'</span>':''):'—';
+      return `<tr>
+        <td>${clusterStatusCell(st)}</td>
+        <td><b>${esc(c.name)}</b>${c.note?'<div class="hint" style="font-size:11px">'+esc(c.note)+'</div>':''}</td>
+        <td class="hint">${esc(c.url)}${c.insecure_skip_verify?' <span class="pill px">跳过证书校验</span>':''}</td>
+        <td class="hint">${c.username?esc(c.username)+(c.has_password?'（已设密码）':''):'—'}</td>
+        <td class="hint">${info}</td>
+        <td>${c.current?'<span class="pill pg">当前</span>':'—'}</td>
+        <td style="white-space:nowrap">
+          ${c.current?'<button class="mini" style="visibility:hidden">设为当前</button>':'<button class="mini" onclick="setCurrentCluster(\''+esc(c.name)+'\')">设为当前</button>'}
+          <button class="mini" onclick="clusterTestOne(\''+esc(c.name)+'\')">测试</button>
+          <button class="mini" onclick="clusterModalShow(\''+esc(c.name)+'\')">编辑</button>
+          <button class="mini danger" onclick="clusterDelete(\''+esc(c.name)+'\')">删除</button>
+        </td></tr>`;
+    }).join('')||'<tr><td colspan="7" class="hint">暂无集群</td></tr>');
+}
+async function clustersStatus(){
+  const {j,s}=await japi('/api/clusters/status');
+  if(s!==200){toast(j.error||'健康检查失败',false);return}
+  (j.list||[]).forEach(r=>{CLUSTER_STATUS[r.name]=r});
+  toast('已刷新集群健康状态');
+  await loadClusters();
+}
+async function clusterTestOne(name){
+  toast('正在测试 '+name+' …');
+  await clustersStatus();
+  const st=CLUSTER_STATUS[name];
+  if(st&&st.ok)toast(name+' 在线 · '+(st.cluster_name||'')+' '+(st.version||''));
+  else toast(name+' 不可达'+(st&&st.error?'：'+st.error:''),false);
+}
+let CEDIT=null; // 正在编辑的集群名（null=新增）
+function clusterModalShow(name){
+  const c=name&&CLUSTERS?(CLUSTERS.list||[]).find(x=>x.name===name):null;
+  CEDIT=c?c.name:null;
+  const v=c||{name:'',url:'http://127.0.0.1:9200',username:'',note:'',timeout_ms:30000,insecure_skip_verify:false};
+  $('modalBody').innerHTML=`<h3>${c?'编辑集群':'新增集群'}</h3>
+    <table style="width:100%">
+      <tr><td style="width:110px;color:var(--muted);padding:4px 0">名称</td><td><input class="inp" id="ceName" style="width:100%" value="${esc(v.name)}" ${c?'disabled':''} placeholder="如 prod / staging"></td></tr>
+      <tr><td style="color:var(--muted);padding:4px 0">地址</td><td><input class="inp" id="ceUrl" style="width:100%" value="${esc(v.url)}" placeholder="http://host:9200"></td></tr>
+      <tr><td style="color:var(--muted);padding:4px 0">用户名</td><td><input class="inp" id="ceUser" style="width:100%" value="${esc(v.username||'')}" placeholder="可空"></td></tr>
+      <tr><td style="color:var(--muted);padding:4px 0">密码</td><td><input class="inp" id="cePass" style="width:100%" type="password" placeholder="${c&&v.has_password?'留空=不修改':'可空'}"></td></tr>
+      <tr><td style="color:var(--muted);padding:4px 0">超时(ms)</td><td><input class="inp" id="ceTimeout" style="width:110px" type="number" value="${v.timeout_ms||30000}"></td></tr>
+      <tr><td style="color:var(--muted);padding:4px 0">备注</td><td><input class="inp" id="ceNote" style="width:100%" value="${esc(v.note||'')}" placeholder="环境 / 用途"></td></tr>
+      <tr><td style="color:var(--muted);padding:4px 0">证书校验</td><td><label style="font-size:12.5px"><input type="checkbox" id="ceInsecure" ${v.insecure_skip_verify?'checked':''}> 跳过 https 证书校验（自签证书集群勾选）</label></td></tr>
+    </table>
+    <div class="row" style="margin-top:12px"><button class="btn btn2" onclick="clusterTestForm()">测试连接</button><span class="hint" id="ceTest" style="margin-left:8px"></span></div>
+    <div class="mrow"><button class="btn btn2" onclick="modalClose()">取消</button><button class="btn" onclick="clusterSave()">保存</button></div>`;
+  $('modal').classList.add('on');
+}
+function clusterFormPick(){
+  return {name:$('ceName').value.trim(),url:$('ceUrl').value.trim(),username:$('ceUser').value.trim(),
+    password:$('cePass').value,insecure_skip_verify:$('ceInsecure').checked,
+    timeout_ms:Number($('ceTimeout').value)||30000,note:$('ceNote').value.trim()};
+}
+async function clusterTestForm(){
+  const p=clusterFormPick();
+  if(!p.url){$('ceTest').textContent='请填写地址';return}
+  $('ceTest').textContent='测试中…';
+  const {j}=await japi('/api/clusters/test',{method:'POST',body:JSON.stringify(p)});
+  if(j.ok){
+    const v=j.version&&j.version.number?j.version.number:'';
+    $('ceTest').innerHTML=`<span class="dot dg"></span> 连接成功 · ${esc(j.cluster_name||'')} ${esc(v)} · ${j.ms}ms`;
+  }else{
+    $('ceTest').innerHTML=`<span class="dot dr"></span> 失败：${esc(j.error||('HTTP '+j.status))}`;
+  }
+}
+async function clusterSave(){
+  const p=clusterFormPick();
+  if(!p.name||!p.url){toast('名称与地址必填',false);return}
+  const {j,s}=CEDIT
+    ? await japi('/api/clusters/'+encodeURIComponent(CEDIT),{method:'PUT',body:JSON.stringify(p)})
+    : await japi('/api/clusters',{method:'POST',body:JSON.stringify(p)});
+  if(s!==200){toast(j.error||'保存失败',false);return}
+  modalClose();
+  toast(CEDIT?'集群已更新':'集群已添加');
+  await clustersBootstrap();
+  await loadClusters();
+}
+function clusterDelete(name){
+  modalConfirm('删除集群',`将从注册表移除集群 <code>${esc(name)}</code>（不影响 ES 集群本身）。`,'删除',true,async()=>{
+    const {j,s}=await japi('/api/clusters/'+encodeURIComponent(name),{method:'DELETE'});
+    if(s!==200){toast(j.error||'删除失败',false);return}
+    toast('已删除集群：'+name);
+    if(CUR_CLUSTER===name)CUR_CLUSTER='';
+    await clustersBootstrap();
+    await loadClusters();
+    await refreshClusterBadge();
+  });
+}
 
 /* ---------- 总览 ---------- */
 function hdrExtra(s){$('hdrExtra').textContent=s}
@@ -834,6 +1031,17 @@ async function aliasAdd(){
 
 /* ---------- 集群运维 ---------- */
 async function loadOps(){
+  // 当前集群上下文（沉浸式运维：本页操作全部作用于顶栏所选集群）
+  const {j:h}=await japi('/api/health');
+  const hh=(h&&h.health)||{};
+  const cur=(CLUSTERS&&(CLUSTERS.list||[]).find(c=>c.name===(CUR_CLUSTER||CLUSTERS.current)))||{};
+  $('opsCtx').innerHTML=`<h3>当前集群上下文</h3><table>
+    <tr><td>集群名</td><td><b>${esc(hh.cluster_name||cur.name||'—')}</b>${cur.url?' <span class="hint">'+esc(cur.url)+'</span>':''}</td></tr>
+    <tr><td>健康</td><td>${h&&h.ok?pillOf(hh.status||'—'):'<span class="err">不可达</span>'}</td></tr>
+    <tr><td>节点</td><td>${hh.number_of_nodes??'—'} 个（数据节点 ${hh.number_of_data_nodes??'—'}）</td></tr>
+    <tr><td>分片</td><td>活跃 ${hh.active_shards??'—'} · 未分配 ${hh.unassigned_shards??0}</td></tr>
+    <tr><td>待处理任务</td><td>${hh.task_max_waiting_in_queue??0}</td></tr>
+  </table><div class="hint" style="margin-top:6px">本页所有运维操作作用于该集群；可在顶栏切换集群或到「集群管理」增删改。</div>`;
   opsReadSettings();
   const {j}=await japi('/api/es/rest',{method:'POST',body:JSON.stringify({method:'GET',path:'/_cat/nodes?format=json&h=name,ip,role,master,heap.percent,disk.used.percent,load_1m'})});
   const arr=Array.isArray(j)?j:[];
@@ -990,115 +1198,199 @@ function snapDelete(repo,snap){
     ()=>esAction('DELETE',`/_snapshot/${repo}/${snap}`,null,snapList));
 }
 
-/* ---------- 查询控制台 ---------- */
-let Q_LAST=null; // 最近一次响应
+/* ---------- 查询控制台（DevTools 双栏）---------- */
+let Q_LAST=null;   // 最近一次响应 {method,path,status,ms,size,text,json,error}
+let Q_HIST=[];     // [{method,path,body}]（最多 30 条）
 const Q_PRESETS={
-  match:`{
+  match:`GET /logs-app/_search
+
+{
   "size": 10,
   "query": {
-    "match": { "_id": "替换为关键词" }
-  },
-  "sort": [ { "_doc": "asc" } ]
+    "match": { "message": "error" }
+  }
 }`,
-  agg:`{
+  agg:`GET /logs-app/_search
+
+{
   "size": 0,
   "aggs": {
-    "by_date": {
-      "date_histogram": {
-        "field": "@timestamp",
-        "fixed_interval": "1d"
-      }
+    "levels": {
+      "terms": { "field": "level.keyword" }
     }
   }
 }`,
-  reset:`{
-  "size": 10,
-  "query": { "match_all": {} }
-}`
+  cat:`GET /_cat/indices?format=json&bytes=b`,
 };
-function qPreset(k){$('qBody').value=Q_PRESETS[k]}
-/* 查询历史：去重（索引+查询体），上限 30，下拉回放 */
-let Q_HIST=[]; // [{idx,body}]
+const Q_DEFAULT=`GET /_cluster/health
+
+###
+
+GET /_cat/indices?format=json&bytes=b`;
+function qFocus(){
+  if(!$('qBody').value.trim()){$('qBody').value=Q_DEFAULT;qSyncLines()}
+  $('qBody').focus();
+}
+function qSyncLines(){
+  const ta=$('qBody');
+  const n=ta.value.split('\n').length;
+  $('qLines').textContent=Array.from({length:n},(_,i)=>i+1).join('\n');
+  $('qLines').scrollTop=ta.scrollTop;
+}
+$('qBody').addEventListener('input',qSyncLines);
+$('qBody').addEventListener('scroll',()=>{$('qLines').scrollTop=$('qBody').scrollTop});
+$('qBody').addEventListener('keydown',e=>{
+  if(e.key==='Tab'){
+    e.preventDefault();
+    const ta=e.target,s=ta.selectionStart,en=ta.selectionEnd;
+    ta.value=ta.value.slice(0,s)+'  '+ta.value.slice(en);
+    ta.selectionStart=ta.selectionEnd=s+2;
+    qSyncLines();
+  }
+});
+function qBlocks(){return $('qBody').value.split(/\n###\n/)}
+function qCurrentBlock(){
+  const ta=$('qBody'),pos=ta.selectionStart,parts=qBlocks();
+  let acc=0;
+  for(let k=0;k<parts.length;k++){
+    const len=parts[k].length+(k<parts.length-1?5:0);
+    if(pos<=acc+len)return parts[k];
+    acc+=len;
+  }
+  return parts[parts.length-1]||'';
+}
+function qParseBlock(text){
+  const lines=String(text).replace(/\r/g,'').split('\n');
+  let i=0;
+  while(i<lines.length&&!lines[i].trim())i++;
+  const first=(lines[i]||'').trim();
+  let method='GET',path=first||'/';
+  const m=first.match(/^(GET|POST|PUT|DELETE|HEAD|PATCH)\s+(.+)$/i);
+  if(m){method=m[1].toUpperCase();path=m[2].trim()||'/'}
+  const body=lines.slice(i+1).join('\n').trim();
+  if(path&&path[0]!=='/')path='/'+path;
+  return {method,path,body};
+}
 function qHistRender(){
   const sel=$('qHist');
-  sel.innerHTML='<option value="">查询历史（'+Q_HIST.length+'）</option>'+
-    Q_HIST.map((h,i)=>{
-      const brief=JSON.stringify(h.body).replace(/\s+/g,' ');
-      return `<option value="${i}">${esc(h.idx)} · ${esc(brief.slice(0,72))}${brief.length>72?'…':''}</option>`;
+  sel.innerHTML='<option value="">历史（'+Q_HIST.length+'）</option>'+
+    Q_HIST.map((h,k)=>{
+      const brief=JSON.stringify(h.body||{}).replace(/\s+/g,' ');
+      return `<option value="${k}">${esc(h.method)} ${esc(h.path)}${brief&&brief!=='{}'?' · '+esc(brief.slice(0,60)):''}</option>`;
     }).join('');
 }
 function qHistApply(sel){
   const i=parseInt(sel.value||'',10);
   if(isNaN(i))return;
   const h=Q_HIST[i];
-  if(!h)return;
-  const qSel=$('qIndex');
-  let ok=false;
-  [...qSel.options].forEach(o=>{if(o.value===h.idx)ok=true});
-  qSel.value=ok?h.idx:'';
-  $('qBody').value=JSON.stringify(h.body,null,2);
+  if(!h){sel.value='';return}
+  const block=h.method+' '+h.path+(h.body?'\n\n'+h.body:'');
+  const ta=$('qBody');
+  ta.value=(ta.value.trim()?ta.value.replace(/\s*$/,'')+'\n\n###\n\n':'')+block;
+  ta.focus();
+  ta.selectionStart=ta.selectionEnd=ta.value.length;
+  qSyncLines();
+  sel.value='';
   qExec();
 }
-async function qLoadIndices(){
-  const {j}=await japi('/api/es/indices');
-  const arr=Array.isArray(j)?j:[];
-  const cur=$('qIndex').value;
-  $('qIndex').innerHTML='<option value="">索引：全部</option>'+arr.map(r=>`<option value="${esc(r.index)}">${esc(r.index)}</option>`).join('');
-  if(arr.some(r=>r.index===cur))$('qIndex').value=cur;
-}
 async function qExec(){
-  let body;
-  try{body=JSON.parse($('qBody').value)}
-  catch(e){toast('查询体不是合法 JSON：'+e.message,false);return}
-  const idx=$('qIndex').value||'_all';
-  // 历史记录（去重：索引+查询体，上限 30）
-  Q_HIST=Q_HIST.filter(h=>!(h.idx===idx&&JSON.stringify(h.body)===JSON.stringify(body)));
-  Q_HIST.unshift({idx,body});
+  const block=qCurrentBlock();
+  if(!block.trim()){toast('请求为空',false);return}
+  const req=qParseBlock(block);
+  if(req.body){
+    try{JSON.parse(req.body)}
+    catch(e){toast('请求体不是合法 JSON：'+e.message,false);return}
+  }
+  // 历史（去重：method+path+body，上限 30）
+  Q_HIST=Q_HIST.filter(h=>!(h.method===req.method&&h.path===req.path&&h.body===req.body));
+  Q_HIST.unshift({method:req.method,path:req.path,body:req.body});
   if(Q_HIST.length>30)Q_HIST.length=30;
   qHistRender();
-  $('qStat').textContent='查询中…';
+  $('qStat').textContent='请求中…';
   const t0=performance.now();
-  const {j,s}=await japi('/api/es/rest',{method:'POST',body:JSON.stringify({method:'POST',path:`/${idx}/_search`,body})});
-  const ms=(performance.now()-t0).toFixed(0);
-  if(s!==200){$('qStat').textContent='';toast(j.error||`ES 拒绝（HTTP ${s}）`,false);return}
-  Q_LAST=j;
-  const took=(j.took!=null?j.took:ms);
-  const hits=(j.hits&&j.hits.total)!=null?(typeof j.hits.total==='object'?j.hits.total.value:j.hits.total):null;
-  $('qStat').textContent=`命中 ${hits!=null?fmtN(hits):'—'} · 耗时 ${took} ms · 返回 ${(j.hits&&j.hits.hits||[]).length} 条`;
-  qRender();
+  try{
+    const {j,s,raw}=await japi('/api/es/rest',{method:'POST',body:JSON.stringify({method:req.method,path:req.path,body:req.body||null})});
+    const ms=Math.round(performance.now()-t0);
+    const text=raw!==undefined?raw:(typeof j==='string'?j:JSON.stringify(j,null,2));
+    const size=new TextEncoder().encode(text).length;
+    Q_LAST={method:req.method,path:req.path,status:s,ms,size,text};
+    try{Q_LAST.json=JSON.parse(text)}catch(e){}
+  }catch(e){
+    Q_LAST={method:req.method,path:req.path,status:0,ms:Math.round(performance.now()-t0),size:0,text:'',error:e.message};
+  }
+  qRenderResp();
 }
-function qRender(){
+function qStatusCls(st){return st>=200&&st<300?'jv-str':st>=400&&st<500?'jv-num':'dev-err'}
+function qFilterText(text,filter){
+  if(!filter)return text;
+  return text.split('\n').filter(l=>l.toLowerCase().includes(filter)).join('\n');
+}
+function jtree(v,key,depth){
+  const ind=depth>0?'style="padding-left:14px"':'';
+  const kk=key!=null?`<span class="jk">${esc(key)}</span>: `:'';
+  if(v===null)return `<div ${ind}>${kk}<span class="jv-null">null</span></div>`;
+  const t=typeof v;
+  if(t!=='object'){
+    const cls=t==='string'?'jv-str':t==='number'?'jv-num':'jv-bool';
+    const txt=t==='string'?'"'+v+'"':String(v);
+    return `<div ${ind}>${kk}<span class="${cls}">${esc(txt)}</span></div>`;
+  }
+  if(Array.isArray(v)){
+    if(!v.length)return `<div ${ind}>${kk}<span class="jv-null">[]</span></div>`;
+    return `<details open ${ind}><summary>${kk}<span class="hint">[${v.length}]</span></summary>${v.map((x,i)=>jtree(x,String(i),depth+1)).join('')}</details>`;
+  }
+  const ks=Object.keys(v);
+  if(!ks.length)return `<div ${ind}>${kk}<span class="jv-null">{}</span></div>`;
+  return `<details open ${ind}><summary>${kk}<span class="hint">{${ks.length}}</span></summary>${ks.map(k=>jtree(v[k],k,depth+1)).join('')}</details>`;
+}
+function qRenderResp(){
+  const r=Q_LAST;
   const out=$('qResult');
-  if(!Q_LAST){out.innerHTML='<div class="hint" style="padding:20px">执行查询后结果将展示在这里</div>';return}
-  if($('qRaw').checked){
-    out.innerHTML=`<pre class="code" style="max-height:56vh">${esc(JSON.stringify(Q_LAST,null,2))}</pre>`;
+  if(!r){out.innerHTML='<div class="hint" style="padding:16px">执行请求后结果显示在这里。</div>';return}
+  $('qStat').textContent=r.status?('HTTP '+r.status+' · '+r.ms+'ms · '+fmtB(r.size)):'请求失败 · '+r.ms+'ms';
+  const filter=($('qFilter').value||'').trim().toLowerCase();
+  const head=`<div style="margin-bottom:8px"><span class="req-tag">${esc(r.method)} ${esc(r.path)}</span>
+    <b class="${r.status?qStatusCls(r.status):'dev-err'}">${r.status?('HTTP '+r.status):'请求失败'}</b>
+    <span class="hint">· ${r.ms} ms${r.size?' · '+fmtB(r.size):''}</span>
+    ${r.error?'<span class="dev-err" style="margin-left:8px">'+esc(r.error)+'</span>':''}</div>`;
+  if(r.error||!r.text){out.innerHTML=head+'<div class="hint">（无响应体）</div>';return}
+  if($('qRaw').checked||filter||r.size>300*1024||r.json===undefined){
+    const pretty=r.json!==undefined?JSON.stringify(r.json,null,2):r.text;
+    const shown=qFilterText(pretty,filter);
+    const more=r.size>300*1024?'<div class="hint" style="margin-bottom:6px">响应较大（'+fmtB(r.size)+'），已用文本视图（可过滤）</div>':'';
+    out.innerHTML=head+more+`<pre class="code">${esc(shown||'（过滤后无匹配行）')}</pre>`;
     return;
   }
-  const hits=(Q_LAST.hits&&Q_LAST.hits.hits)||[];
-  // 聚合结果视图
-  const aggs=Q_LAST.aggregations||null;
-  let aggHtml='';
-  if(aggs){
-    aggHtml=`<div class="kv" style="margin-bottom:10px"><h3>聚合结果</h3><pre class="code" style="max-height:30vh">${esc(JSON.stringify(aggs,null,2))}</pre></div>`;
-  }
-  if(!hits.length){
-    out.innerHTML=aggHtml+'<div class="hint" style="padding:16px">'+(aggs?'无命中行（纯聚合查询）':'无命中')+'</div>';
-    return;
-  }
-  // 动态列：取所有 _source 的键并集（保序：首条优先）
-  const keys=[];
-  const seen=new Set();
-  hits.forEach(h=>{
-    Object.keys(h._source||{}).forEach(k=>{if(!seen.has(k)){seen.add(k);keys.push(k)}});
-    if(h._id!=null&&!seen.has('_id')){}
+  out.innerHTML=head+jtree(r.json,null,0);
+}
+function qFormat(){
+  const ta=$('qBody');
+  const parts=qBlocks().map(p=>{
+    const req=qParseBlock(p);
+    if(!req.body)return req.method+' '+req.path;
+    try{return req.method+' '+req.path+'\n\n'+JSON.stringify(JSON.parse(req.body),null,2)}
+    catch(e){return p.trim()}
   });
-  out.innerHTML=aggHtml+`<table class="tbl"><tr><th>#</th>${keys.map(k=>`<th>${esc(k)}</th>`).join('')}</tr>`+
-  hits.map((h,i)=>`<tr><td class="hint">${i+1}</td>${keys.map(k=>{
-    let v=(h._source||{})[k];
-    if(v==null)v=h[k]!==undefined&&k!=='_source'?h[k]:''; // 允许 _id/_score
-    let txt=typeof v==='object'?JSON.stringify(v):String(v);
-    return `<td style="max-width:280px;overflow:hidden;text-overflow:ellipsis" title="${esc(txt)}">${esc(txt)}</td>`;
-  }).join('')}</tr>`).join('')+'</table>';
+  ta.value=parts.join('\n\n###\n\n');
+  qSyncLines();
+}
+function qPreset(k){
+  $('qBody').value=Q_PRESETS[k];
+  qSyncLines();
+  $('qBody').focus();
+}
+function qCopy(){
+  if(!Q_LAST||!Q_LAST.text){toast('无可复制内容',false);return}
+  navigator.clipboard.writeText(Q_LAST.text).then(()=>toast('已复制响应'));
+}
+function qDownload(){
+  if(!Q_LAST||!Q_LAST.text){toast('无可下载内容',false);return}
+  const blob=new Blob([Q_LAST.text],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='es-response-'+Date.now()+'.json';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 
 /* ---------- 品牌定制：logo 上传 ---------- */
@@ -1132,10 +1424,12 @@ async function brandLogoClear(){
 }
 
 async function boot(){
+  await clustersBootstrap();           // 先定当前集群，后续请求带 X-Cluster
   const {j}=await japi('/api/state');
   $('fVer').textContent='SearchBoard v'+(j.version||'0.1');
   await applyBrand();
   await logLoadFiles();
+  qSyncLines();
   const p=location.hash.slice(1)||'overview';nav(p);
   if(j.es&&j.es.ok){
     CLUSTER_INFO={name:j.es.clusterName,ver:(j.es.version&&j.es.version.number)||'',status:'green'};

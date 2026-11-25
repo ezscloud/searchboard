@@ -8,12 +8,16 @@ listen: 127.0.0.1:9201
 # webfw 传输层：auto（Linux 走 netpoll，其余平台 std）/ netpoll / std
 transport: auto
 
-# Elasticsearch / OpenSearch 连接
+# Elasticsearch / OpenSearch 连接（首次启动据此生成名为 local 的默认集群）
 elasticsearch:
   url: http://127.0.0.1:9200
   username: ""          # 开启安全认证的集群填写
   password: ""
   insecure_skip_verify: false   # https 自签证书集群设 true
+
+# 多集群注册表（YAML，界面「集群管理」增删改即写此文件；密码明文落盘）
+# 文件不存在时用上面的 elasticsearch 段初始化；切换当前集群全站生效
+clusters_file: "clusters.yml"
 
 # 节点日志追踪（agent 与 ES 同机部署时可直接看节点日志）
 logs:

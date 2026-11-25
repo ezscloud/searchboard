@@ -2,15 +2,22 @@
 //
 // 路由清单（全部挂在 /api/*，前端与静态资源走 /public/* 与 SPA fallback）：
 //
-//	GET  /api/state        启动状态（版本/品牌/日志目录/ES 概要）
-//	GET  /api/health       ES 探活
-//	GET  /api/es/root      透传 GET /
+//	GET  /api/state        启动状态（版本/品牌/日志目录/ES 概要/集群概要）
+//	GET  /api/health       ES 探活（当前集群）
+//	GET  /api/es/root      透传 GET /（当前集群；X-Cluster 头可指定）
 //	GET  /api/es/health    透传 _cluster/health
 //	GET  /api/es/stats     透传 _cluster/stats
 //	GET  /api/es/nodes     透传 _nodes/stats
 //	GET  /api/es/indices   透传 _cat/indices?format=json&bytes=b
 //	GET  /api/es/shards    透传 _cat/shards?format=json&bytes=b
 //	POST /api/es/rest      透传任意 REST（body: {method,path,body}）
+//	GET  /api/clusters     多集群列表（脱敏）+ 当前集群
+//	POST /api/clusters     新增集群
+//	PUT  /api/clusters/:name    更新集群（密码空=不修改）
+//	DELETE /api/clusters/:name  删除集群（至少保留一个）
+//	POST /api/clusters/current  切换当前集群 {name}
+//	POST /api/clusters/test     临时连接测试（不落盘）
+//	GET  /api/clusters/status   批量健康探测（并行）
 //	GET  /api/logs         日志文件列表
 //	GET  /api/logs/stream  SSE 实时日志流（?file=&lines=）
 //	GET  /api/brand        当前品牌
@@ -36,6 +43,7 @@ import (
 	"github.com/ezscloud/searchboard/framework"
 	"github.com/ezscloud/searchboard/framework/jsonx"
 	"github.com/ezscloud/searchboard/framework/vfs"
+	"github.com/ezscloud/searchboard/internal/cluster"
 	"github.com/ezscloud/searchboard/internal/es"
 	"github.com/ezscloud/searchboard/internal/logtail"
 )
@@ -88,10 +96,11 @@ func (s *BrandState) Reset() Brand {
 
 // Options API 装配选项。
 type Options struct {
-	ES      *es.Client
-	Tail    *logtail.Tailer
-	Brand   *BrandState
-	Version string
+	ES       *es.Client
+	Clusters *cluster.Manager // 多集群注册表；nil=单客户端模式（测试/兼容）
+	Tail     *logtail.Tailer
+	Brand    *BrandState
+	Version  string
 
 	// PublicDir 品牌资源持久目录（logo 上传写入此处，重启不丢）；空=仅运行时
 	PublicDir string
@@ -106,6 +115,7 @@ type Options struct {
 // API 路由集合。
 type API struct {
 	es        *es.Client
+	clusters  *cluster.Manager
 	tail      *logtail.Tailer
 	brand     *BrandState
 	version   string
@@ -120,7 +130,7 @@ func Register(srv *framework.Server, opts Options) {
 	if hb <= 0 {
 		hb = 15 * time.Second
 	}
-	a := &API{es: opts.ES, tail: opts.Tail, brand: opts.Brand, version: opts.Version,
+	a := &API{es: opts.ES, clusters: opts.Clusters, tail: opts.Tail, brand: opts.Brand, version: opts.Version,
 		heartbeat: hb, publicDir: opts.PublicDir, stack: opts.Stack}
 	g := srv.GET
 	g("/api/state", a.handleState)
@@ -132,6 +142,14 @@ func Register(srv *framework.Server, opts Options) {
 	g("/api/es/indices", a.proxy("GET", "/_cat/indices?format=json&bytes=b"))
 	g("/api/es/shards", a.proxy("GET", "/_cat/shards?format=json&bytes=b"))
 	srv.POST("/api/es/rest", a.handleRest)
+	// 多集群管理
+	g("/api/clusters", a.handleClusters)
+	g("/api/clusters/status", a.handleClustersStatus)
+	srv.POST("/api/clusters", a.handleClusterAdd)
+	srv.PUT("/api/clusters/:name", a.handleClusterUpdate)
+	srv.DELETE("/api/clusters/:name", a.handleClusterDelete)
+	srv.POST("/api/clusters/current", a.handleClusterCurrent)
+	srv.POST("/api/clusters/test", a.handleClusterTest)
 	g("/api/logs", a.handleLogs)
 	g("/api/logs/stream", a.handleLogStream)
 	g("/api/brand", a.handleBrandGet)
@@ -153,15 +171,24 @@ func (a *API) handleState(c *framework.Context) {
 		},
 		"es": map[string]any{"ok": false},
 	}
-	if r, err := a.es.Ping(ctxOf(c)); err == nil && r.StatusCode == 200 {
-		var root map[string]any
-		if jsonx.Unmarshal(r.Body, &root) == nil {
-			st["es"] = map[string]any{
-				"ok":          true,
-				"name":        root["name"],
-				"clusterName": root["cluster_name"],
-				"uuid":        root["cluster_uuid"],
-				"version":     root["version"],
+	if a.clusters != nil {
+		st["clusters"] = map[string]any{
+			"current": a.clusters.Current(),
+			"names":   a.clusters.Names(),
+			"file":    a.clusters.Path(),
+		}
+	}
+	if cl, err := a.clientOf(c); err == nil {
+		if r, err := cl.Ping(ctxOf(c)); err == nil && r.StatusCode == 200 {
+			var root map[string]any
+			if jsonx.Unmarshal(r.Body, &root) == nil {
+				st["es"] = map[string]any{
+					"ok":          true,
+					"name":        root["name"],
+					"clusterName": root["cluster_name"],
+					"uuid":        root["cluster_uuid"],
+					"version":     root["version"],
+				}
 			}
 		}
 	}
@@ -169,7 +196,12 @@ func (a *API) handleState(c *framework.Context) {
 }
 
 func (a *API) handleHealth(c *framework.Context) {
-	r, err := a.es.Health(ctxOf(c))
+	cl, cerr := a.clientOf(c)
+	if cerr != nil {
+		c.JSON(200, map[string]any{"ok": false, "error": cerr.Error()})
+		return
+	}
+	r, err := cl.Health(ctxOf(c))
 	switch {
 	case err != nil:
 		c.JSON(200, map[string]any{"ok": false, "error": err.Error()})
@@ -185,10 +217,24 @@ func (a *API) handleHealth(c *framework.Context) {
 // ---------------------------------------------------------------------------
 // ES 透传
 
+// clientOf 解析请求对应的集群客户端：优先 X-Cluster 头，缺省用当前集群。
+// 兼容单客户端模式（测试装配）：未启用多集群时直接返回 a.es。
+func (a *API) clientOf(c *framework.Context) (*es.Client, error) {
+	if a.clusters == nil {
+		return a.es, nil
+	}
+	return a.clusters.Client(c.Header("X-Cluster"))
+}
+
 // proxy 生成 GET 类透传处理器。
 func (a *API) proxy(method, path string) framework.HandlerFunc {
 	return func(c *framework.Context) {
-		r, err := a.es.Do(ctxOf(c), method, path, nil)
+		cl, err := a.clientOf(c)
+		if err != nil {
+			c.JSON(404, map[string]string{"error": err.Error()})
+			return
+		}
+		r, err := cl.Do(ctxOf(c), method, path, nil)
 		a.respondES(c, r, err)
 	}
 }
@@ -218,7 +264,12 @@ func (a *API) handleRest(c *framework.Context) {
 	if len(req.Body) > 0 {
 		body = req.Body
 	}
-	r, err := a.es.Do(ctxOf(c), method, path, body)
+	cl, cerr := a.clientOf(c)
+	if cerr != nil {
+		c.JSON(404, map[string]string{"error": cerr.Error()})
+		return
+	}
+	r, err := cl.Do(ctxOf(c), method, path, body)
 	a.respondES(c, r, err)
 }
 
@@ -231,6 +282,132 @@ func (a *API) respondES(c *framework.Context, r *es.Response, err error) {
 	ct := "application/json; charset=utf-8"
 	c.SetRespHeader("X-ES-Status", strconv.Itoa(r.StatusCode))
 	c.Data(r.StatusCode, ct, r.Body)
+}
+
+// ---------------------------------------------------------------------------
+// 多集群管理
+
+func (a *API) handleClusters(c *framework.Context) {
+	if a.clusters == nil {
+		c.JSON(200, map[string]any{"current": "", "list": []cluster.View{}, "file": ""})
+		return
+	}
+	c.JSON(200, map[string]any{
+		"current": a.clusters.Current(),
+		"list":    a.clusters.List(),
+		"file":    a.clusters.Path(),
+	})
+}
+
+func (a *API) handleClusterAdd(c *framework.Context) {
+	if a.clusters == nil {
+		c.JSON(500, map[string]string{"error": "多集群未启用"})
+		return
+	}
+	var p cluster.Pick
+	if err := c.BindJSON(&p); err != nil {
+		c.JSON(400, map[string]string{"error": "bad request: " + err.Error()})
+		return
+	}
+	if err := a.clusters.Add(p); err != nil {
+		c.JSON(400, map[string]string{"error": err.Error()})
+		return
+	}
+	c.JSON(200, map[string]any{"ok": true, "current": a.clusters.Current()})
+}
+
+func (a *API) handleClusterUpdate(c *framework.Context) {
+	if a.clusters == nil {
+		c.JSON(500, map[string]string{"error": "多集群未启用"})
+		return
+	}
+	var p cluster.Pick
+	if err := c.BindJSON(&p); err != nil {
+		c.JSON(400, map[string]string{"error": "bad request: " + err.Error()})
+		return
+	}
+	if err := a.clusters.Update(c.Param("name"), p); err != nil {
+		c.JSON(400, map[string]string{"error": err.Error()})
+		return
+	}
+	c.JSON(200, map[string]any{"ok": true})
+}
+
+func (a *API) handleClusterDelete(c *framework.Context) {
+	if a.clusters == nil {
+		c.JSON(500, map[string]string{"error": "多集群未启用"})
+		return
+	}
+	if err := a.clusters.Remove(c.Param("name")); err != nil {
+		c.JSON(400, map[string]string{"error": err.Error()})
+		return
+	}
+	c.JSON(200, map[string]any{"ok": true, "current": a.clusters.Current()})
+}
+
+func (a *API) handleClusterCurrent(c *framework.Context) {
+	if a.clusters == nil {
+		c.JSON(500, map[string]string{"error": "多集群未启用"})
+		return
+	}
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := c.BindJSON(&req); err != nil {
+		c.JSON(400, map[string]string{"error": "bad request: " + err.Error()})
+		return
+	}
+	if err := a.clusters.SetCurrent(req.Name); err != nil {
+		c.JSON(400, map[string]string{"error": err.Error()})
+		return
+	}
+	c.JSON(200, map[string]any{"ok": true, "current": a.clusters.Current()})
+}
+
+func (a *API) handleClusterTest(c *framework.Context) {
+	var p cluster.Pick
+	if err := c.BindJSON(&p); err != nil {
+		c.JSON(400, map[string]string{"error": "bad request: " + err.Error()})
+		return
+	}
+	info, err := cluster.Test(ctxOf(c), p)
+	if err != nil {
+		c.JSON(200, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	c.JSON(200, info)
+}
+
+// handleClustersStatus 并行探测全部集群健康（列表页状态列）。
+func (a *API) handleClustersStatus(c *framework.Context) {
+	if a.clusters == nil {
+		c.JSON(200, map[string]any{"list": []any{}})
+		return
+	}
+	vs := a.clusters.List()
+	out := make([]map[string]any, len(vs))
+	var wg sync.WaitGroup
+	for i, v := range vs {
+		wg.Add(1)
+		go func(i int, name string) {
+			defer wg.Done()
+			row := map[string]any{"name": name}
+			info, err := a.clusters.Ping(ctxOf(c), name)
+			if err != nil {
+				row["ok"] = false
+				row["error"] = err.Error()
+			} else {
+				row["ok"] = info["ok"]
+				row["ms"] = info["ms"]
+				row["error"] = info["error"]
+				row["cluster_name"] = info["cluster_name"]
+				row["version"] = info["version"]
+			}
+			out[i] = row
+		}(i, v.Name)
+	}
+	wg.Wait()
+	c.JSON(200, map[string]any{"list": out})
 }
 
 // ---------------------------------------------------------------------------

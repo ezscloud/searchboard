@@ -33,7 +33,8 @@ func (d Duration) D() time.Duration { return time.Duration(d) }
 type Config struct {
 	Listen        string      `yaml:"listen"`        // 如 "127.0.0.1:9201"
 	Transport     string      `yaml:"transport"`     // auto / netpoll / std
-	Elasticsearch ESConfig    `yaml:"elasticsearch"` // ES/OpenSearch 连接
+	Elasticsearch ESConfig    `yaml:"elasticsearch"` // 启动默认 ES 连接（首次运行生成默认集群）
+	ClustersFile  string      `yaml:"clusters_file"` // 多集群注册表（YAML），默认 clusters.yml
 	Logs          LogConfig   `yaml:"logs"`          // 节点日志追踪
 	Brand         BrandConfig `yaml:"brand"`         // 品牌定制（可被运行时 API 覆盖）
 	PublicDir     string      `yaml:"public_dir"`    // 外部覆盖目录（logo 等静态资源）；空=仅 embed 基座
@@ -81,6 +82,9 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.Elasticsearch.URL == "" {
 		cfg.Elasticsearch.URL = "http://127.0.0.1:9200"
+	}
+	if cfg.ClustersFile == "" {
+		cfg.ClustersFile = "clusters.yml"
 	}
 	if cfg.Logs.PollInterval == 0 {
 		cfg.Logs.PollInterval = Duration(500 * time.Millisecond)

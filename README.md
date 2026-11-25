@@ -33,11 +33,13 @@ go build -o bin/framework-demo ./cmd/framework-demo
 | 总览 | 集群健康/节点数/索引数/文档总数/存储用量/分片数卡片；集群信息表；节点资源（堆/磁盘/CPU 条形图） |
 | 节点 | `_nodes/stats` 明细：JVM 堆、磁盘、CPU、文档量、写入/查询速率 |
 | 索引 | `_cat/indices`：健康徽章、状态、UUID、主副分片、文档数、存储、创建时间，支持过滤；**行内操作：删除（确认弹窗）/ 关闭 / 打开** |
-| 分片 | `_cat/shards`：主/副、状态筛选（STARTED/INITIALIZING/RELOCATING/UNASSIGNED）、节点分布 |
+| 分片 | `_cat/shards`：主/副、状态筛选、节点分布；**表格/矩阵双视图**（矩阵=索引×节点格子，主/副/未分配颜色区分） |
 | **别名** | `_cat/aliases`：列表/过滤/移除/新增（弹窗表单），指向索引与写别名标记 |
-| **集群运维** | 分片均衡开关、并发恢复数（transient 设置下发）；**节点排水/恢复分配**（allocation exclude，状态实时反映） |
-| REST 控制台 | 任意 REST 透传（method/path/JSON body），响应 pretty 打印 + ES 状态码/耗时/大小 |
+| **集群运维** | 当前集群上下文卡片（沉浸式）；分片均衡开关、并发恢复数（transient 设置下发）；**节点排水/恢复分配**（allocation exclude，状态实时反映） |
+| **DevTools（查询控制台）** | 双栏：左侧请求编辑器（行号/Tab 缩进/`###` 分隔多请求/Ctrl+Enter 执行光标处），右侧响应面板（折叠 JSON 树、状态码/耗时/大小、响应行过滤、原始视图、复制/下载），请求历史去重回放 |
+| REST 控制台 | 单请求透传（method/path/JSON body），响应 pretty 打印 + ES 状态码/耗时/大小 |
 | 节点日志 | SSE 实时流：尾部回放 + 实时追加 + 滚动轮转自动重开 + ERROR/WARN 着色 |
+| **集群管理** | 多集群 CRUD（名称/地址/认证/超时/备注/跳过证书校验）+ 连接测试 + 健康检查（并行探测）+ 设为当前；顶栏集群切换器全站生效 |
 | 品牌定制 | 运行时改站点名/标语/logo；**界面直接上传 logo**（≤256KB，png/svg/jpg/webp；持久到 public_dir 或运行时 VFS 层）+ 清除 |
 
 ES 不可达时前端降级提示（侧边栏红灯 + 总览横幅），10s 轮询自动恢复。
@@ -73,10 +75,15 @@ public_dir: "public"       # 外部覆盖目录（logo 等静态资源覆盖 emb
 
 | 端点 | 说明 |
 |---|---|
-| `GET /api/state` | 启动状态（版本/品牌/日志目录/ES 概要） |
-| `GET /api/health` | ES 探活（`_cluster/health` 包装） |
-| `GET /api/es/root` `health` `stats` `nodes` `indices` `shards` | ES 端点透传（`X-ES-Status` 头回传真实状态码） |
+| `GET /api/state` | 启动状态（版本/品牌/日志目录/ES 概要/集群概要） |
+| `GET /api/health` | ES 探活（`_cluster/health` 包装，作用于当前/X-Cluster 集群） |
+| `GET /api/es/root` `health` `stats` `nodes` `indices` `shards` | ES 端点透传（`X-Cluster` 头选集群，`X-ES-Status` 回传真实状态码） |
 | `POST /api/es/rest` | 任意 REST 透传：`{method, path, body}` |
+| `GET /api/clusters` | 集群列表（密码脱敏）+ 当前集群 + 注册表路径 |
+| `POST /api/clusters` · `PUT/DELETE /api/clusters/:name` | 集群新增/更新（密码空=不改）/删除（至少保留一个） |
+| `POST /api/clusters/current` | 切换当前集群 `{name}` |
+| `POST /api/clusters/test` | 临时连接测试（不落盘） |
+| `GET /api/clusters/status` | 全部集群并行健康探测（在线/延迟/版本） |
 | `GET /api/logs` | 日志文件列表（名称/大小/mtime，按修改时间倒序） |
 | `GET /api/logs/stream?file=&lines=` | SSE 日志流（事件：`line`/`ready`/`rotate`/`error`/`end`） |
 | `GET/POST /api/brand`、`POST /api/brand/reset` | 品牌读取/更新/恢复 YAML 默认 |

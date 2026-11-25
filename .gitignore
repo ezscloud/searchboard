@@ -16,3 +16,7 @@ dist/
 # 系统文件
 .DS_Store
 Thumbs.db
+
+# 多集群运行时注册表（界面增删改产生，不入库）
+clusters.yml
+clusters.yml.tmp

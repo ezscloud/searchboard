@@ -26,8 +26,17 @@ type Client struct {
 
 // New 创建客户端（insecureSkipVerify 用于自签 https 集群）。
 func New(base, username, password string, insecureSkipVerify bool) *Client {
+	return NewWithTimeout(base, username, password, insecureSkipVerify, 0)
+}
+
+// NewWithTimeout 创建客户端并指定请求超时（<=0 用默认 30s）。
+func NewWithTimeout(base, username, password string, insecureSkipVerify bool, timeout time.Duration) *Client {
 	c := framework.NewClient()
-	c.Timeout = 30 * time.Second
+	if timeout > 0 {
+		c.Timeout = timeout
+	} else {
+		c.Timeout = 30 * time.Second
+	}
 	if insecureSkipVerify {
 		c.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // 用户显式配置
 	}
