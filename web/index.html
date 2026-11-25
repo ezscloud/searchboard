@@ -89,7 +89,9 @@ section.page.on{display:block}
 .dev-wrap{display:flex;gap:12px;height:calc(100vh - 152px);min-height:420px}
 .dev-pane{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
 .dev-bar{display:flex;align-items:center;gap:6px;padding:7px 10px;border-bottom:1px solid var(--border);background:var(--panel2);flex-wrap:wrap;flex:none}
-.dev-editor{flex:1;display:flex;overflow:hidden;background:var(--bg2)}
+.dev-editor{flex:1;min-width:0;display:flex;overflow:hidden;background:var(--bg2);position:relative}
+.dev-split{width:7px;flex:none;margin:0 -1px;cursor:col-resize;background:var(--panel2);border-left:1px solid var(--border);border-right:1px solid var(--border);transition:background .15s}
+.dev-split:hover,.dev-split.on{background:var(--accent-dim)}
 .dev-lines{width:46px;flex:none;padding:10px 8px 10px 0;text-align:right;color:var(--muted);font-family:var(--mono);font-size:12.5px;line-height:1.66;user-select:none;overflow:hidden;background:var(--bg2);border-right:1px solid var(--border)}
 .dev-editor textarea{flex:1;min-width:0}
 #qBody{border:0;outline:0;resize:none;background:transparent;color:var(--text);font-family:var(--mono);font-size:12.5px;line-height:1.66;padding:10px 12px;white-space:pre;overflow:auto;tab-size:2}
@@ -103,7 +105,15 @@ section.page.on{display:block}
 .dev-resp details[open]>summary::before{transform:rotate(90deg)}
 .jk{color:var(--cyan)} .jv-str{color:var(--green)} .jv-num{color:var(--yellow)} .jv-bool{color:var(--violet)} .jv-null{color:var(--muted)}
 .dev-err{color:var(--red)}
-@media(max-width:1100px){.dev-wrap{flex-direction:column;height:auto}.dev-pane{min-height:340px}}
+@media(max-width:1100px){.dev-wrap{flex-direction:column;height:auto}.dev-pane{flex:none!important;min-height:340px}.dev-split{display:none}}
+/* DevTools 自动补全弹层 */
+.ac{position:absolute;z-index:60;background:var(--panel3);border:1px solid var(--border2);border-radius:8px;max-height:262px;min-width:270px;max-width:360px;overflow:auto;box-shadow:var(--shadow);display:none;font-family:var(--mono)}
+.ac.on{display:block}
+.ac .aci{padding:5px 10px;font-size:12px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text2)}
+.ac .aci.on{background:var(--accent-dim);color:var(--text)}
+.ac .aci .acsub{color:var(--muted);margin-left:8px;font-size:10.5px}
+.ac .aci.on .acsub{color:var(--accent)}
+.ac .achint{padding:4px 10px;border-top:1px solid var(--border);color:var(--muted);font-size:10px;position:sticky;bottom:0;background:var(--panel3)}
 
 /* ---------- 表格 ---------- */
 .tblwrap{border:1px solid var(--border);border-radius:var(--r);overflow:auto;background:var(--panel);max-height:calc(100vh - 170px)}
@@ -275,8 +285,10 @@ pre.code{background:var(--bg2);border:1px solid var(--border);border-radius:var(
         <div class="dev-editor">
           <pre class="dev-lines" id="qLines">1</pre>
           <textarea id="qBody" spellcheck="false"></textarea>
+          <div class="ac" id="acBox"></div>
         </div>
       </div>
+      <div class="dev-split" id="devSplit" title="拖拽调整左右比例"></div>
       <div class="dev-pane">
         <div class="dev-bar">
           <span id="qStat" class="hint">响应面板</span>
@@ -491,6 +503,7 @@ async function switchCluster(name){
   if(s!==200){toast(j.error||'切换失败',false);fillClusterSel();return}
   CUR_CLUSTER=name;localStorage.setItem('sb.cluster',name);
   ES_OK=false;CLUSTER_INFO=null;renderClusterBar();
+  IDX_CACHE=null;qFieldCache={};hideAc(); // 集群切换后索引/字段缓存失效
   toast('已切换到集群：'+name);
   await refreshClusterBadge();
   const p=location.hash.slice(1)||'overview';
@@ -1227,6 +1240,205 @@ const Q_DEFAULT=`GET /_cluster/health
 ###
 
 GET /_cat/indices?format=json&bytes=b`;
+/* ---------- 自动补全 ---------- */
+const AC={items:[],active:0,ctx:null,on:false,navigated:false};
+let qFieldCache={},IDX_CACHE=null; // 字段缓存（cluster|idx）/ 索引列表缓存
+const ES_ENDPOINTS=[
+  '/_cat/indices','/_cat/shards','/_cat/nodes','/_cat/aliases','/_cat/health','/_cat/segments',
+  '/_cat/thread_pool','/_cat/allocation','/_cat/count','/_cat/recovery','/_cat/pending_tasks',
+  '/_cat/master','/_cat/plugins','/_cat/templates','/_cat/fielddata','/_cat/nodeattrs',
+  '/_cluster/health','/_cluster/stats','/_cluster/settings','/_cluster/state','/_cluster/allocation/explain',
+  '/_nodes','/_nodes/stats','/_nodes/hot_threads','/_nodes/usage',
+  '/_search','/_count','/_msearch','/_analyze','/_bulk','/_reindex','/_delete_by_query',
+  '/_update_by_query','/_validate/query','/_refresh','/_flush','/_forcemerge','/_cache/clear',
+  '/_alias','/_aliases','/_settings','/_mapping','/_stats','/_tasks','/_snapshot','/_ingest/pipeline',
+];
+const DSL_KEYS={
+  body:['size','from','query','sort','aggs','_source','fields','highlight','timeout','track_total_hits','explain','stored_fields','docvalue_fields','min_score','version'],
+  query:['match','match_phrase','match_phrase_prefix','multi_match','term','terms','range','exists','wildcard','prefix','regexp','fuzzy','ids','query_string','simple_query_string','bool','constant_score','dis_max','function_score','nested','geo_distance','geo_bounding_box'],
+  bool:['must','should','must_not','filter','minimum_should_match'],
+  agg:['terms','date_histogram','histogram','avg','sum','min','max','stats','cardinality','percentiles','top_hits','value_count','range','date_range','filter','filters','nested','significant_terms'],
+  value:['true','false','asc','desc','and','or','query_then_fetch','dfs_query_then_fetch'],
+};
+async function qIdxList(){
+  if(IDX_CACHE)return IDX_CACHE;
+  const {j}=await japi('/api/es/indices');
+  IDX_CACHE=(Array.isArray(j)?j:[]).map(r=>r.index);
+  return IDX_CACHE;
+}
+async function qFieldsFor(idx){
+  if(!idx)return [];
+  const key=(CUR_CLUSTER||'')+'|'+idx;
+  if(qFieldCache[key])return qFieldCache[key];
+  const {j}=await japi('/api/es/rest',{method:'POST',body:JSON.stringify({method:'GET',path:'/'+idx+'/_mapping'})});
+  const out=[];
+  const walk=(props,base)=>{
+    if(!props)return;
+    Object.keys(props).forEach(k=>{
+      const p=props[k]||{};
+      const path=base?base+'.'+k:k;
+      out.push({f:path,type:p.type||'object'});
+      if(p.fields)Object.keys(p.fields).forEach(fk=>out.push({f:path+'.'+fk,type:(p.fields[fk]||{}).type}));
+      if(p.properties)walk(p.properties,path);
+    });
+  };
+  const m=(j&&j[idx]&&j[idx].mappings)||(j&&j.mappings)||null;
+  walk(m&&m.properties,null);
+  qFieldCache[key]=out;
+  return out;
+}
+function acIdxOf(head){
+  const seg=(head.match(/^[A-Za-z]+\s+\/?([^\s\/]+)/)||[])[1]||'';
+  if(!seg||seg.startsWith('_')||seg==='_all')return '';
+  return seg.split(',')[0];
+}
+// acCtx：光标位置判定补全模式与当前 token
+function acCtx(){
+  const ta=$('qBody'),v=ta.value,pos=ta.selectionStart;
+  const sep=v.lastIndexOf('\n###\n',Math.max(0,pos-1));
+  const bs=sep<0?0:sep+5;
+  const rest=v.slice(bs);
+  const nl1=rest.indexOf('\n');
+  const headEndAbs=bs+(nl1<0?rest.length:nl1);
+  const head=(nl1<0?rest:rest.slice(0,nl1)).trim();
+  const hm=head.match(/^([A-Za-z]+)\s+\S*$/);
+  if(pos<=headEndAbs+1&&hm){
+    let s=pos;
+    while(s>bs&&/[\w.\-\/]/.test(v[s-1]))s--;
+    let e=pos;
+    while(e<v.length&&/[\w.\-\/]/.test(v[e]))e++;
+    const token=v.slice(s,e);
+    return {mode:'path',token,start:s,end:e,method:hm[1].toUpperCase(),idxFromPath:acIdxOf(head)};
+  }
+  // body 区：token 提取（字母数字点横线），判别以 token 前的结构字符为准
+  let s=pos;
+  while(s>bs&&/[\w.\-]/.test(v[s-1]))s--;
+  let e=pos;
+  while(e<v.length&&/[\w.\-]/.test(v[e]))e++;
+  const token=v.slice(s,e);
+  // token 前跳过空白后的结构字符
+  let k=s-1;
+  while(k>bs&&/\s/.test(v[k]))k--;
+  const pv=v[k]||'';
+  const idx=acIdxOf(head);
+  if(pv==='{'){return {mode:'key',token,qStart:null,start:s,end:e,idxFromPath:idx}}
+  if(pv===','){return {mode:'key',token,qStart:null,start:s,end:e,idxFromPath:idx}}
+  if(pv===':'){return {mode:'value',token,start:s,end:e,idxFromPath:idx}}
+  if(v[s-1]==='"'){
+    // token 紧贴开引号：引号前（跳空白）是 {/,/块首 → key 输入中
+    const qStart=s-1;
+    let k2=qStart-1;
+    while(k2>bs&&/\s/.test(v[k2]))k2--;
+    const c2=v[k2]||'';
+    if(c2==='{'||c2===','||c2==='')return {mode:'key',token,qStart,start:s,end:e,idxFromPath:idx};
+    return null; // 值字符串内部
+  }
+  return null;
+}
+async function acCandidates(ctx){
+  if(ctx.mode==='path'){
+    const t=ctx.token;
+    const idxs=await qIdxList();
+    const dyn=[];
+    (idxs||[]).forEach(i=>['_search','_count','_mapping','_settings','_stats','_close','_open'].forEach(s=>dyn.push('/'+i+'/'+s)));
+    let cands=ES_ENDPOINTS.concat(dyn);
+    if(t&&t!=='/'){const tl=t.toLowerCase();cands=cands.filter(c=>c.toLowerCase().startsWith(tl))}
+    cands.sort((a,b)=>a.length-b.length);
+    return cands.slice(0,14).map(c=>({label:c,g:'路径'}));
+  }
+  if(ctx.mode==='key'){
+    const t=(ctx.token||'').toLowerCase();
+    const fields=ctx.idxFromPath?(await qFieldsFor(ctx.idxFromPath)).map(f=>({label:f.f,sub:f.type,g:'字段'})):[];
+    const keys=DSL_KEYS.body.map(k=>({label:k,g:'DSL'}))
+      .concat(DSL_KEYS.query.map(k=>({label:k,g:'查询'})))
+      .concat(DSL_KEYS.bool.map(k=>({label:k,g:'bool'})))
+      .concat(DSL_KEYS.agg.map(k=>({label:k,g:'聚合'})));
+    const all=fields.concat(keys);
+    if(t)return all.filter(x=>x.label.toLowerCase().startsWith(t)).slice(0,16);
+    return all.slice(0,16);
+  }
+  if(ctx.mode==='value'){
+    const t=(ctx.token||'').toLowerCase();
+    let vals=DSL_KEYS.value.map(x=>({label:x,g:'值'}));
+    if(t)vals=vals.filter(x=>x.label.startsWith(t));
+    return vals.slice(0,8);
+  }
+  return [];
+}
+// caretRect：mirror div 量光标像素位置（相对 .dev-editor）
+function caretRect(ta){
+  const div=document.createElement('div');
+  const cs=getComputedStyle(ta);
+  ['fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','paddingTop','paddingLeft','paddingRight','width','tabSize','borderWidth'].forEach(k=>div.style[k]=cs[k]);
+  div.style.position='absolute';
+  div.style.top=ta.offsetTop+'px';div.style.left=ta.offsetLeft+'px';
+  div.style.whiteSpace='pre-wrap';div.style.wordWrap='break-word';
+  div.style.visibility='hidden';
+  div.textContent=ta.value.slice(0,ta.selectionStart);
+  const sp=document.createElement('span');sp.textContent='\u200b';
+  div.appendChild(sp);
+  ta.parentElement.appendChild(div);
+  const r={left:sp.offsetLeft-ta.scrollLeft,top:sp.offsetTop-ta.scrollTop};
+  div.remove();
+  return r;
+}
+async function acShow(){
+  const ctx=acCtx();
+  if(!ctx){hideAc();return}
+  const items=await acCandidates(ctx);
+  if(!items.length){hideAc();return}
+  AC.ctx=ctx;AC.items=items;AC.active=0;AC.on=true;AC.navigated=false;
+  const box=$('acBox'),ed=$('qBody').parentElement;
+  const r=caretRect($('qBody'));
+  box.style.left=Math.max(0,Math.min(r.left,ed.clientWidth-300))+'px';
+  box.style.top=(r.top+22)+'px';
+  acRender();
+}
+function acRender(){
+  const box=$('acBox');
+  box.innerHTML=AC.items.map((it,i)=>`<div class="aci${i===AC.active?' on':''}" data-i="${i}">${esc(it.label)}${it.sub?`<span class="acsub">${esc(it.sub)}</span>`:''}${it.g?`<span class="acsub">[${esc(it.g)}]</span>`:''}</div>`).join('')+
+    '<div class="achint">↑↓ 选择 · Enter/Tab 应用 · Esc 关闭</div>';
+  box.classList.add('on');
+  const sel=box.querySelector('.aci.on');
+  if(sel&&sel.offsetTop>180)box.scrollTop=sel.offsetTop-170;
+  box.querySelectorAll('.aci').forEach(el=>{
+    el.addEventListener('mousedown',e=>{e.preventDefault();AC.active=+el.dataset.i;acApply()});
+  });
+}
+function hideAc(){AC.on=false;AC.items=[];AC.ctx=null;const b=$('acBox');if(b)b.classList.remove('on')}
+function acApply(){
+  const it=AC.items[AC.active],ctx=AC.ctx,el=$('qBody');
+  if(!it||!ctx){hideAc();return}
+  let ins,ds=ctx.start,de=ctx.end;
+  if(ctx.mode==='path')ins=it.label;
+  else if(ctx.mode==='key'){
+    ins='"'+it.label+'": ';
+    if(ctx.qStart!=null)ds=ctx.qStart;
+  }else ins=it.label;
+  el.value=el.value.slice(0,ds)+ins+el.value.slice(de);
+  el.selectionStart=el.selectionEnd=ds+ins.length;
+  hideAc();qSyncLines();el.focus();
+}
+/* 拖拽分隔条（左右比例，localStorage 持久化） */
+function devSplitInit(){
+  const sp=$('devSplit');if(!sp)return;
+  const wrap=sp.parentElement,l=wrap.children[0];
+  const saved=localStorage.getItem('sb.devsplit');
+  if(saved&&parseFloat(saved)>10)l.style.flex='0 0 '+saved;
+  let dragging=false;
+  sp.addEventListener('mousedown',e=>{dragging=true;sp.classList.add('on');e.preventDefault()});
+  window.addEventListener('mousemove',e=>{
+    if(!dragging)return;
+    const rect=wrap.getBoundingClientRect();
+    const pct=Math.min(80,Math.max(20,(e.clientX-rect.left)/rect.width*100));
+    l.style.flex='0 0 '+pct+'%';
+  });
+  window.addEventListener('mouseup',()=>{
+    if(!dragging)return;
+    dragging=false;sp.classList.remove('on');
+    localStorage.setItem('sb.devsplit',l.style.flex.replace(/^0 0 /,'')||'50%');
+  });
+}
 function qFocus(){
   if(!$('qBody').value.trim()){$('qBody').value=Q_DEFAULT;qSyncLines()}
   $('qBody').focus();
@@ -1237,9 +1449,16 @@ function qSyncLines(){
   $('qLines').textContent=Array.from({length:n},(_,i)=>i+1).join('\n');
   $('qLines').scrollTop=ta.scrollTop;
 }
-$('qBody').addEventListener('input',qSyncLines);
-$('qBody').addEventListener('scroll',()=>{$('qLines').scrollTop=$('qBody').scrollTop});
+$('qBody').addEventListener('input',()=>{qSyncLines();acShow()});
+$('qBody').addEventListener('scroll',()=>{$('qLines').scrollTop=$('qBody').scrollTop;hideAc()});
+$('qBody').addEventListener('blur',()=>setTimeout(()=>{if(!document.querySelector('.ac:hover'))hideAc()},150));
 $('qBody').addEventListener('keydown',e=>{
+  if(AC.on&&AC.items.length){
+    if(e.key==='ArrowDown'){e.preventDefault();AC.active=Math.min(AC.active+1,AC.items.length-1);AC.navigated=true;acRender();return}
+    if(e.key==='ArrowUp'){e.preventDefault();AC.active=Math.max(AC.active-1,0);AC.navigated=true;acRender();return}
+    if((e.key==='Enter'||e.key==='Tab')&&AC.navigated){e.preventDefault();acApply();return}
+    if(e.key==='Escape'){e.preventDefault();hideAc();return}
+  }
   if(e.key==='Tab'){
     e.preventDefault();
     const ta=e.target,s=ta.selectionStart,en=ta.selectionEnd;
@@ -1247,6 +1466,9 @@ $('qBody').addEventListener('keydown',e=>{
     ta.selectionStart=ta.selectionEnd=s+2;
     qSyncLines();
   }
+});
+window.addEventListener('mousedown',e=>{
+  if(e.target&&e.target.closest&&!e.target.closest('.ac,#qBody'))hideAc();
 });
 function qBlocks(){return $('qBody').value.split(/\n###\n/)}
 function qCurrentBlock(){
@@ -1279,6 +1501,16 @@ function qHistRender(){
       return `<option value="${k}">${esc(h.method)} ${esc(h.path)}${brief&&brief!=='{}'?' · '+esc(brief.slice(0,60)):''}</option>`;
     }).join('');
 }
+/* 请求历史持久化（localStorage，跨刷新/重启保留） */
+const Q_HIST_KEY='sb.qhist';
+function qHistLoad(){
+  try{
+    const a=JSON.parse(localStorage.getItem(Q_HIST_KEY)||'[]');
+    if(Array.isArray(a))Q_HIST=a.filter(h=>h&&h.method&&h.path).slice(0,30);
+  }catch(e){Q_HIST=[]}
+  qHistRender();
+}
+function qHistSave(){try{localStorage.setItem(Q_HIST_KEY,JSON.stringify(Q_HIST))}catch(e){}}
 function qHistApply(sel){
   const i=parseInt(sel.value||'',10);
   if(isNaN(i))return;
@@ -1306,6 +1538,7 @@ async function qExec(){
   Q_HIST.unshift({method:req.method,path:req.path,body:req.body});
   if(Q_HIST.length>30)Q_HIST.length=30;
   qHistRender();
+  qHistSave();
   $('qStat').textContent='请求中…';
   const t0=performance.now();
   try{
@@ -1429,6 +1662,8 @@ async function boot(){
   $('fVer').textContent='SearchBoard v'+(j.version||'0.1');
   await applyBrand();
   await logLoadFiles();
+  qHistLoad();
+  devSplitInit();
   qSyncLines();
   const p=location.hash.slice(1)||'overview';nav(p);
   if(j.es&&j.es.ok){
