@@ -74,6 +74,14 @@ section.page.on{display:block}
 .pill{display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600;letter-spacing:.3px}
 .pg{background:rgba(52,210,123,.14);color:var(--green)} .py{background:rgba(232,182,76,.14);color:var(--yellow)}
 .pr{background:rgba(239,95,95,.14);color:var(--red)} .px{background:rgba(255,255,255,.07);color:var(--muted)}
+/* 分片矩阵（cerebro 式） */
+.shcell{display:flex;flex-wrap:wrap;gap:5px;min-height:24px}
+.shchip{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:22px;padding:0 5px;border-radius:6px;font-size:11px;font-weight:700;font-family:var(--mono);cursor:default}
+.shchip.p{background:var(--accent);color:#06131f}
+.shchip.r{border:1.5px solid var(--green);color:var(--green)}
+.shchip.i{background:rgba(232,182,76,.22);color:var(--yellow);border:1.5px dashed var(--yellow)}
+.shchip.rl{background:rgba(63,200,221,.22);color:var(--cyan)}
+.shchip.u{border:1.5px solid var(--red);color:var(--red)}
 
 /* ---------- 表格 ---------- */
 .tblwrap{border:1px solid var(--border);border-radius:var(--r);overflow:auto;background:var(--panel);max-height:calc(100vh - 170px)}
@@ -247,6 +255,7 @@ pre.code{background:var(--bg2);border:1px solid var(--border);border-radius:var(
     </div>
     <div class="row" style="margin-top:10px">
       <span class="hint">POST /{索引}/_search</span>
+      <select class="sel" id="qHist" style="max-width:360px" onchange="qHistApply(this)"><option value="">查询历史</option></select>
       <div class="sp"></div>
       <label class="hint"><input type="checkbox" id="qRaw" onchange="qRender()"> 原始 JSON 视图</label>
     </div>
@@ -275,8 +284,10 @@ pre.code{background:var(--bg2);border:1px solid var(--border);border-radius:var(
   <section class="page" id="pg-shards">
     <div class="row"><input class="inp" id="sFilter" placeholder="过滤分片…" style="width:220px">
       <select class="sel" id="sState"><option value="">全部状态</option><option>STARTED</option><option>INITIALIZING</option><option>RELOCATING</option><option>UNASSIGNED</option></select>
+      <select class="sel" id="sView"><option value="table">表格视图</option><option value="matrix">矩阵视图</option></select>
       <div class="sp"></div><button class="btn" onclick="loadShards()">刷新</button></div>
     <table class="tbl" id="tShards"></table>
+    <div id="shLegend"></div>
   </section>
 
   <section class="page" id="pg-rest">
@@ -566,6 +577,8 @@ function shardRows(filter,state){
     const arr=Array.isArray(j)?j:[];
     const f=(filter||'').toLowerCase();
     const rows=arr.filter(r=>(!f||(r.index||'').toLowerCase().includes(f))&&(!state||r.state===state));
+    if($('sView').value==='matrix'){renderShardMatrix(rows);return}
+    $('shLegend').innerHTML='';
     const statePill=s=>`<span class="pill ${s==='STARTED'?'pg':s==='UNASSIGNED'?'px':s==='RELOCATING'?'py':'pr'}">${esc(s)}</span>`;
     // 按索引分组渲染：索引头行（可折叠）+ 分片行
     const byIdx=new Map();
@@ -584,6 +597,51 @@ function shardRows(filter,state){
 let loadShards=shardRows('','');
 $('sFilter').oninput=e=>{loadShards=shardRows(e.target.value,$('sState').value);loadShards()};
 $('sState').onchange=e=>{loadShards=shardRows($('sFilter').value,e.target.value);loadShards()};
+$('sView').onchange=()=>loadShards();
+/* 分片矩阵（cerebro 式）：行=索引、列=节点、格子=分片，颜色=主/副/状态 */
+function renderShardMatrix(rows){
+  const NA='(未分配)';
+  const realNodes=[];const seen=new Set();let hasUn=false;
+  rows.forEach(r=>{
+    if(!r.node){hasUn=true;return}
+    if(!seen.has(r.node)){seen.add(r.node);realNodes.push(r.node)}
+  });
+  realNodes.sort();
+  const byIdx=new Map();
+  rows.forEach(r=>{
+    const k=r.index||'—';
+    if(!byIdx.has(k))byIdx.set(k,[]);
+    byIdx.get(k).push(r);
+  });
+  const chipOf=r=>{
+    let cls='p';
+    if(r.state==='UNASSIGNED')cls='u';
+    else if(r.state==='INITIALIZING')cls='i';
+    else if(r.state==='RELOCATING')cls='rl';
+    else if(r.prirep==='r')cls='r';
+    const tip=`${r.index} #${r.shard} ${r.prirep==='p'?'主':'副'} · ${r.state}${r.node?' · '+r.node:''}${r.store?' · '+r.store:''}${r.docs?' · '+fmtN(r.docs)+' docs':''}`;
+    return `<span class="shchip ${cls}" title="${esc(tip)}">${esc(String(r.shard))}</span>`;
+  };
+  const cell=(idx,node)=>{
+    const list=(byIdx.get(idx)||[]).filter(r=>(r.node||NA)===node)
+      .sort((a,b)=>(parseInt(a.shard,10)||0)-(parseInt(b.shard,10)||0));
+    return list.length?`<td><div class="shcell">${list.map(chipOf).join('')}</div></td>`:'<td class="hint">·</td>';
+  };
+  const idxs=[...byIdx.keys()].sort();
+  let html='<tr><th style="min-width:160px">索引 \\ 节点</th>'+realNodes.map(n=>`<th>${esc(n)}</th>`).join('')+(hasUn?'<th style="color:var(--red)">未分配</th>':'')+'</tr>';
+  idxs.forEach(idx=>{
+    html+=`<tr><td class="hint" style="font-weight:600;white-space:nowrap">${esc(idx)}</td>`+
+      realNodes.map(n=>cell(idx,n)).join('')+(hasUn?cell(idx,NA):'')+'</tr>';
+  });
+  $('tShards').innerHTML=html||'<tr><td class="hint">无匹配分片</td></tr>';
+  $('shLegend').innerHTML=`<div class="row" style="margin-top:10px;gap:12px">
+    <span class="shchip p">0</span><span class="hint">主分片</span>
+    <span class="shchip r">0</span><span class="hint">副分片</span>
+    <span class="shchip i">0</span><span class="hint">初始化中</span>
+    <span class="shchip rl">0</span><span class="hint">迁移中</span>
+    <span class="shchip u">0</span><span class="hint">未分配</span>
+    <span class="hint">· 悬停查看分片详情</span></div>`;
+}
 
 /* ---------- REST 控制台 ---------- */
 function restQuick(p){$('rMethod').value='GET';$('rPath').value=p;restSend()}
@@ -959,6 +1017,28 @@ const Q_PRESETS={
 }`
 };
 function qPreset(k){$('qBody').value=Q_PRESETS[k]}
+/* 查询历史：去重（索引+查询体），上限 30，下拉回放 */
+let Q_HIST=[]; // [{idx,body}]
+function qHistRender(){
+  const sel=$('qHist');
+  sel.innerHTML='<option value="">查询历史（'+Q_HIST.length+'）</option>'+
+    Q_HIST.map((h,i)=>{
+      const brief=JSON.stringify(h.body).replace(/\s+/g,' ');
+      return `<option value="${i}">${esc(h.idx)} · ${esc(brief.slice(0,72))}${brief.length>72?'…':''}</option>`;
+    }).join('');
+}
+function qHistApply(sel){
+  const i=parseInt(sel.value||'',10);
+  if(isNaN(i))return;
+  const h=Q_HIST[i];
+  if(!h)return;
+  const qSel=$('qIndex');
+  let ok=false;
+  [...qSel.options].forEach(o=>{if(o.value===h.idx)ok=true});
+  qSel.value=ok?h.idx:'';
+  $('qBody').value=JSON.stringify(h.body,null,2);
+  qExec();
+}
 async function qLoadIndices(){
   const {j}=await japi('/api/es/indices');
   const arr=Array.isArray(j)?j:[];
@@ -971,6 +1051,11 @@ async function qExec(){
   try{body=JSON.parse($('qBody').value)}
   catch(e){toast('查询体不是合法 JSON：'+e.message,false);return}
   const idx=$('qIndex').value||'_all';
+  // 历史记录（去重：索引+查询体，上限 30）
+  Q_HIST=Q_HIST.filter(h=>!(h.idx===idx&&JSON.stringify(h.body)===JSON.stringify(body)));
+  Q_HIST.unshift({idx,body});
+  if(Q_HIST.length>30)Q_HIST.length=30;
+  qHistRender();
   $('qStat').textContent='查询中…';
   const t0=performance.now();
   const {j,s}=await japi('/api/es/rest',{method:'POST',body:JSON.stringify({method:'POST',path:`/${idx}/_search`,body})});
