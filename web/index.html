@@ -93,8 +93,17 @@ section.page.on{display:block}
 .dev-split{width:7px;flex:none;margin:0 -1px;cursor:col-resize;background:var(--panel2);border-left:1px solid var(--border);border-right:1px solid var(--border);transition:background .15s}
 .dev-split:hover,.dev-split.on{background:var(--accent-dim)}
 .dev-lines{width:46px;flex:none;padding:10px 8px 10px 0;text-align:right;color:var(--muted);font-family:var(--mono);font-size:12.5px;line-height:1.66;user-select:none;overflow:hidden;background:var(--bg2);border-right:1px solid var(--border)}
+.dev-code{flex:1;min-width:0;position:relative;overflow:hidden}
+.dev-hl{position:absolute;inset:0;margin:0;padding:10px 12px;font-family:var(--mono);font-size:12.5px;line-height:1.66;white-space:pre;overflow:hidden;color:var(--text2);pointer-events:none;z-index:1}
+.dev-hl .hk{color:var(--cyan)} .dev-hl .hs{color:var(--green)} .dev-hl .hn{color:var(--yellow)} .dev-hl .hb{color:var(--violet)}
+.dev-hl .hp{color:var(--muted)}
+.dev-hl .hm{font-weight:700;color:var(--accent)}
+.dev-hl .hm.GET{color:var(--green)} .dev-hl .hm.POST{color:var(--accent)} .dev-hl .hm.PUT{color:var(--yellow)}
+.dev-hl .hm.DELETE{color:var(--red)} .dev-hl .hm.HEAD{color:var(--violet)} .dev-hl .hm.PATCH{color:var(--cyan)}
+.dev-hl .hc{color:var(--muted);font-style:italic}
+#qBody{position:relative;z-index:2;color:transparent;caret-color:var(--text);border:0;outline:0;resize:none;background:transparent;font-family:var(--mono);font-size:12.5px;line-height:1.66;padding:10px 12px;white-space:pre;overflow:auto;tab-size:2}
+#qBody::selection{background:rgba(74,163,240,.32)}
 .dev-editor textarea{flex:1;min-width:0}
-#qBody{border:0;outline:0;resize:none;background:transparent;color:var(--text);font-family:var(--mono);font-size:12.5px;line-height:1.66;padding:10px 12px;white-space:pre;overflow:auto;tab-size:2}
 .dev-resp{flex:1;overflow:auto;padding:10px 12px;font-family:var(--mono);font-size:12.5px;line-height:1.62}
 .dev-resp pre.code{margin:0;max-height:none}
 .dev-resp .req-tag{display:inline-block;background:var(--accent-dim);color:var(--accent);border-radius:6px;padding:2px 8px;font-size:11px;margin:2px 6px 8px 0}
@@ -276,16 +285,22 @@ pre.code{background:var(--bg2);border:1px solid var(--border);border-radius:var(
           <span class="hint">DevTools · Ctrl+Enter 执行光标处请求 · <code>###</code> 分隔多请求</span>
           <div class="sp"></div>
           <button class="btn btn2" onclick="qFormat()">格式化</button>
+          <button class="btn btn2" onclick="qCurl()">复制 cURL</button>
           <button class="btn btn2" onclick="qPreset('match')">match</button>
           <button class="btn btn2" onclick="qPreset('agg')">聚合</button>
           <button class="btn btn2" onclick="qPreset('cat')">索引列表</button>
-          <select class="sel" id="qHist" style="max-width:240px" onchange="qHistApply(this)"><option value="">历史</option></select>
+          <select class="sel" id="qHist" style="max-width:200px" onchange="qHistApply(this)"><option value="">历史</option></select>
+          <select class="sel" id="qFav" style="max-width:170px" onchange="qFavApply(this)"><option value="">收藏</option></select>
+          <button class="btn btn2" onclick="qFavAdd()">☆ 收藏</button>
           <button class="btn" onclick="qExec()">▶ 执行</button>
         </div>
         <div class="dev-editor">
           <pre class="dev-lines" id="qLines">1</pre>
-          <textarea id="qBody" spellcheck="false"></textarea>
-          <div class="ac" id="acBox"></div>
+          <div class="dev-code">
+            <pre class="dev-hl" id="qHl" aria-hidden="true"></pre>
+            <textarea id="qBody" spellcheck="false"></textarea>
+            <div class="ac" id="acBox"></div>
+          </div>
         </div>
       </div>
       <div class="dev-split" id="devSplit" title="拖拽调整左右比例"></div>
@@ -297,8 +312,9 @@ pre.code{background:var(--bg2);border:1px solid var(--border);border-radius:var(
           <label class="hint"><input type="checkbox" id="qRaw" onchange="qRenderResp()"> 原始</label>
           <button class="btn btn2" onclick="qCopy()">复制</button>
           <button class="btn btn2" onclick="qDownload()">下载</button>
+          <button class="btn btn2" onclick="qClear()">清空</button>
         </div>
-        <div class="dev-resp" id="qResult"><div class="hint" style="padding:16px">执行请求后结果显示在这里。支持任意 method/path，响应以折叠 JSON 树展示。</div></div>
+        <div class="dev-resp" id="qResult"><div class="hint" style="padding:16px">执行请求后结果显示在这里。支持任意 method/path，响应以折叠 JSON 树展示；点击树中的键可复制路径。</div></div>
       </div>
     </div>
   </section>
@@ -1443,21 +1459,52 @@ function qFocus(){
   if(!$('qBody').value.trim()){$('qBody').value=Q_DEFAULT;qSyncLines()}
   $('qBody').focus();
 }
+function qHighlight(v){
+  let out='',last=0,m;
+  const re=/("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false|null)\b|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|\b(GET|POST|PUT|DELETE|HEAD|PATCH)\b|([{}\[\],:])/g;
+  while((m=re.exec(v))){
+    out+=esc(v.slice(last,m.index));
+    if(m[1]){
+      if(m[2]!==undefined)out+=`<span class="hk">${esc(m[1])}</span><span class="hp">${esc(m[2])}</span>`;
+      else out+=`<span class="hs">${esc(m[1])}</span>`;
+    }else if(m[3])out+=`<span class="hb">${m[3]}</span>`;
+    else if(m[4])out+=`<span class="hn">${m[4]}</span>`;
+    else if(m[5])out+=`<span class="hm ${m[5]}">${m[5]}</span>`;
+    else if(m[6])out+=`<span class="hp">${esc(m[6])}</span>`;
+    last=m.index+m[0].length;
+  }
+  out+=esc(v.slice(last));
+  return out+' '; // 尾部空格保证与 textarea 高度一致
+}
 function qSyncLines(){
   const ta=$('qBody');
   const n=ta.value.split('\n').length;
   $('qLines').textContent=Array.from({length:n},(_,i)=>i+1).join('\n');
   $('qLines').scrollTop=ta.scrollTop;
+  const hl=$('qHl');
+  if(hl){hl.innerHTML=qHighlight(ta.value);hl.scrollTop=ta.scrollTop;hl.scrollLeft=ta.scrollLeft}
 }
 $('qBody').addEventListener('input',()=>{qSyncLines();acShow()});
-$('qBody').addEventListener('scroll',()=>{$('qLines').scrollTop=$('qBody').scrollTop;hideAc()});
+$('qBody').addEventListener('scroll',()=>{$('qLines').scrollTop=$('qBody').scrollTop;const hl=$('qHl');if(hl){hl.scrollTop=$('qBody').scrollTop;hl.scrollLeft=$('qBody').scrollLeft}hideAc()});
 $('qBody').addEventListener('blur',()=>setTimeout(()=>{if(!document.querySelector('.ac:hover'))hideAc()},150));
 $('qBody').addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key===' '){e.preventDefault();acShow();return}
   if(AC.on&&AC.items.length){
     if(e.key==='ArrowDown'){e.preventDefault();AC.active=Math.min(AC.active+1,AC.items.length-1);AC.navigated=true;acRender();return}
     if(e.key==='ArrowUp'){e.preventDefault();AC.active=Math.max(AC.active-1,0);AC.navigated=true;acRender();return}
     if((e.key==='Enter'||e.key==='Tab')&&AC.navigated){e.preventDefault();acApply();return}
     if(e.key==='Escape'){e.preventDefault();hideAc();return}
+  }
+  if(e.key==='Enter'&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&!e.altKey){
+    // 自动缩进：换行后保持当前行缩进（Kibana 行为）
+    const ta=e.target,vs=ta.value;
+    const lineStart=vs.lastIndexOf('\n',ta.selectionStart-1)+1;
+    const cur=vs.slice(lineStart,ta.selectionStart);
+    const indent=(cur.match(/^[ \t]*/)||[''])[0];
+    e.preventDefault();
+    ta.setRangeText('\n'+indent,ta.selectionStart,ta.selectionEnd,'end');
+    qSyncLines();acShow();
+    return;
   }
   if(e.key==='Tab'){
     e.preventDefault();
@@ -1499,7 +1546,7 @@ function qHistRender(){
     Q_HIST.map((h,k)=>{
       const brief=JSON.stringify(h.body||{}).replace(/\s+/g,' ');
       return `<option value="${k}">${esc(h.method)} ${esc(h.path)}${brief&&brief!=='{}'?' · '+esc(brief.slice(0,60)):''}</option>`;
-    }).join('');
+    }).join('')+(Q_HIST.length?'<option value="__clear">— 清空历史 —</option>':'');
 }
 /* 请求历史持久化（localStorage，跨刷新/重启保留） */
 const Q_HIST_KEY='sb.qhist';
@@ -1512,6 +1559,9 @@ function qHistLoad(){
 }
 function qHistSave(){try{localStorage.setItem(Q_HIST_KEY,JSON.stringify(Q_HIST))}catch(e){}}
 function qHistApply(sel){
+  if(sel.value==='__clear'){
+    Q_HIST=[];qHistSave();qHistRender();toast('历史已清空');return;
+  }
   const i=parseInt(sel.value||'',10);
   if(isNaN(i))return;
   const h=Q_HIST[i];
@@ -1558,9 +1608,15 @@ function qFilterText(text,filter){
   if(!filter)return text;
   return text.split('\n').filter(l=>l.toLowerCase().includes(filter)).join('\n');
 }
-function jtree(v,key,depth){
+function copyJsonPath(p){
+  if(!p){toast('根节点无路径',false);return}
+  navigator.clipboard.writeText(p).then(()=>toast('已复制路径：'+p)).catch(()=>toast('复制失败',false));
+}
+function jtree(v,key,depth,path){
+  path=path||[];
   const ind=depth>0?'style="padding-left:14px"':'';
-  const kk=key!=null?`<span class="jk">${esc(key)}</span>: `:'';
+  const ps=path.reduce((s,x)=>typeof x==='number'?s+'['+x+']':(s?s+'.'+x:x),'');
+  const kk=key!=null?`<span class="jk" style="cursor:pointer" title="点击复制路径 ${esc(ps)}" data-path="${esc(ps)}" onclick="event.stopPropagation();copyJsonPath(this.dataset.path)">${esc(key)}</span>: `:'';
   if(v===null)return `<div ${ind}>${kk}<span class="jv-null">null</span></div>`;
   const t=typeof v;
   if(t!=='object'){
@@ -1568,13 +1624,15 @@ function jtree(v,key,depth){
     const txt=t==='string'?'"'+v+'"':String(v);
     return `<div ${ind}>${kk}<span class="${cls}">${esc(txt)}</span></div>`;
   }
+  // 前两层展开，深层默认折叠（大响应防卡顿，Kibana 同款策略）
+  const op=depth<2?'open':'';
   if(Array.isArray(v)){
     if(!v.length)return `<div ${ind}>${kk}<span class="jv-null">[]</span></div>`;
-    return `<details open ${ind}><summary>${kk}<span class="hint">[${v.length}]</span></summary>${v.map((x,i)=>jtree(x,String(i),depth+1)).join('')}</details>`;
+    return `<details ${op} ${ind}><summary>${kk}<span class="hint">[${v.length}]</span></summary>${v.map((x,i)=>jtree(x,i,depth+1,path.concat(i))).join('')}</details>`;
   }
   const ks=Object.keys(v);
   if(!ks.length)return `<div ${ind}>${kk}<span class="jv-null">{}</span></div>`;
-  return `<details open ${ind}><summary>${kk}<span class="hint">{${ks.length}}</span></summary>${ks.map(k=>jtree(v[k],k,depth+1)).join('')}</details>`;
+  return `<details ${op} ${ind}><summary>${kk}<span class="hint">{${ks.length}}</span></summary>${ks.map(k=>jtree(v[k],k,depth+1,path.concat(k))).join('')}</details>`;
 }
 function qRenderResp(){
   const r=Q_LAST;
@@ -1625,6 +1683,58 @@ function qDownload(){
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
+function qCurl(){
+  const block=qCurrentBlock();
+  if(!block.trim()){toast('请求为空',false);return}
+  const req=qParseBlock(block);
+  const cur=(CLUSTERS&&(CLUSTERS.list||[]).find(c=>c.name===(CUR_CLUSTER||CLUSTERS.current)))||{};
+  const base=(cur.url||'http://localhost:9200').replace(/\/+$/,'');
+  let cmd=`curl -X ${req.method} '${base}${req.path}'`;
+  if(req.body)cmd+=` -H 'Content-Type: application/json' -d '${req.body.replace(/'/g,"'\\''")}'`;
+  navigator.clipboard.writeText(cmd).then(()=>toast('已复制 cURL 命令')).catch(()=>toast('复制失败',false));
+}
+function qClear(){
+  $('qBody').value='';
+  Q_LAST=null;
+  $('qResult').innerHTML='<div class="hint" style="padding:16px">执行请求后结果显示在这里。支持任意 method/path，响应以折叠 JSON 树展示；点击树中的键可复制路径。</div>';
+  $('qStat').textContent='响应面板';
+  hideAc();qSyncLines();$('qBody').focus();
+}
+/* 请求收藏（localStorage，命名保存） */
+const Q_FAV_KEY='sb.qfav';
+let Q_FAV=[];
+function qFavLoad(){
+  try{const a=JSON.parse(localStorage.getItem(Q_FAV_KEY)||'[]');if(Array.isArray(a))Q_FAV=a.filter(f=>f&&f.name&&f.text)}catch(e){Q_FAV=[]}
+  qFavRender();
+}
+function qFavSave(){try{localStorage.setItem(Q_FAV_KEY,JSON.stringify(Q_FAV.slice(0,50)))}catch(e){}}
+function qFavRender(){
+  const sel=$('qFav');
+  sel.innerHTML='<option value="">收藏（'+Q_FAV.length+'）</option>'+
+    Q_FAV.map((f,i)=>`<option value="${i}">${esc(f.name)}</option>`).join('');
+}
+function qFavAdd(){
+  const block=qCurrentBlock().trim();
+  if(!block){toast('当前请求为空',false);return}
+  const req=qParseBlock(block);
+  const name=(prompt('收藏名称',req.method+' '+req.path)||'').trim();
+  if(!name)return;
+  Q_FAV=Q_FAV.filter(f=>f.name!==name);
+  Q_FAV.unshift({name,text:block});
+  if(Q_FAV.length>50)Q_FAV.length=50;
+  qFavSave();qFavRender();toast('已收藏：'+name);
+}
+function qFavApply(sel){
+  const i=parseInt(sel.value||'',10);
+  if(isNaN(i)){sel.value='';return}
+  const f=Q_FAV[i];
+  if(!f){sel.value='';return}
+  const ta=$('qBody');
+  ta.value=(ta.value.trim()?ta.value.replace(/\s*$/,'')+'\n\n###\n\n':'')+f.text;
+  ta.focus();ta.selectionStart=ta.selectionEnd=ta.value.length;
+  qSyncLines();sel.value='';
+  qExec();
+}
 
 /* ---------- 品牌定制：logo 上传 ---------- */
 function brandLogoFile(inp){
@@ -1663,6 +1773,7 @@ async function boot(){
   await applyBrand();
   await logLoadFiles();
   qHistLoad();
+  qFavLoad();
   devSplitInit();
   qSyncLines();
   const p=location.hash.slice(1)||'overview';nav(p);
